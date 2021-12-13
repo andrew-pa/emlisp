@@ -1,0 +1,5 @@
+"test string"
+"test1234string"
+"(test string)"
+"test\nstring"
+"test\"string"

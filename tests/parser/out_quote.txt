@@ -1,0 +1,7 @@
+(quote . (1234 . nil))
+(quote . (abcd . nil))
+(quote . ("abcd" . nil))
+(quote . ((1 . (2 . (3 . nil))) . nil))
+(quote . ((a . (b . (c . nil))) . nil))
+(quote . (((quote . (a . nil)) . ((quote . (b . nil)) . ((quote . (c . nil)) . nil))) . nil))
+(quote . (((quote . (((quote . (nil . nil)) . nil) . nil)) . nil) . nil))
