@@ -3,7 +3,7 @@
 #include <iostream>
 
 namespace emlisp {
-    heap::heap(size_t num_cons, size_t num_str_bytes) {
+    memory::memory(size_t num_cons, size_t num_str_bytes, size_t num_frame_bytes) {
         cons = new value[num_cons*2];
         assert(cons != nullptr);
         next_cons = cons;
@@ -11,9 +11,13 @@ namespace emlisp {
         strings = new char[num_str_bytes];
         assert(strings != nullptr);
         next_str = strings;
+
+        frames = new uint8_t[num_frame_bytes];
+        assert(frames != nullptr);
+        next_frame = frames;
     }
 
-    value heap::alloc_cons(value fst, value snd) {
+    value memory::alloc_cons(value fst, value snd) {
         value* addr = next_cons;
         addr[0] = fst;
         addr[1] = snd;
@@ -22,7 +26,7 @@ namespace emlisp {
         return (((uint64_t)addr) << 4) | (uint64_t)value_type::cons;
     }
 
-    value heap::make_str(std::string_view src) {
+    value memory::make_str(std::string_view src) {
         //todo: deal with oom
         char* str = next_str;
         next_str += src.size() + 1;
@@ -31,9 +35,26 @@ namespace emlisp {
         return (((uint64_t)str) << 4) | (uint64_t)value_type::str;
     }
 
+    frame* memory::alloc_frame(frame* parent, size_t size) {
+        frame* f = (frame*)next_frame;
+        //todo: deal with oom
+        next_frame += sizeof(frame) + size * 2 * sizeof(value);
+        f->parent = parent;
+        f->size = size;
+        return f;
+    }
+
     runtime::runtime()
-        : h(std::make_unique<heap>())
+        : h(std::make_unique<memory>())
     {
+        global_scope = h->alloc_frame(nullptr, 0);
+        sym_quote  = symbol("quote");
+        sym_lambda = symbol("lambda");
+        sym_if = symbol("if");
+        sym_set = symbol("set!");
+        sym_cons = symbol("cons");
+        sym_car = symbol("car");
+        sym_cdr = symbol("cdr");
     }
 
     value runtime::cons(value fst, value snd) {
@@ -73,10 +94,11 @@ namespace emlisp {
                     value e = parse_value(src, i);
                     res = cons(e, res);
                 }
+                i++;
                 return reverse_list(res);
             } else if(src[i] == '\'') {
                 i++;
-                return cons(symbol("quote"), cons(parse_value(src, i)));
+                return cons(sym_quote, cons(parse_value(src, i)));
             } else if(src[i] == '"') {
                 ++i;
                 std::string s;
@@ -158,12 +180,101 @@ namespace emlisp {
                 write(os, second(v));
                 os << ")";
                 break;
+            case value_type::closure:
+                os << "#closure" << "<" << std::hex << v << std::dec << ">";
+                break;
+            case value_type::_extern:
+                os << "<" << std::hex << v << std::dec << ">";
+                break;
         }
     }
 
-    value eval(value x) {
-        //todo
-        return NIL;
+    std::ostream& operator <<(std::ostream& os, value_type vt) {
+        const char* names[] = {
+            "nil", "bool", "int", "float", "symbol", "string",
+            "?", "?", "?", "?", "?", "?", "?", "?",
+            "closure", "cons"
+        };
+        return os << (names[(size_t)vt]);
     }
 
+    function::function(value arg_list, value body)
+        : body(body)
+    {
+        while (arg_list != NIL) {
+            arguments.push_back(first(arg_list));
+            arg_list = second(arg_list);
+        }
+    }
+
+    value runtime::eval(value x) {
+        return eval(x, global_scope);
+    }
+
+    value runtime::eval(value x, frame* cur_frame) {
+        switch (type_of(x)) {
+        case value_type::nil:
+        case value_type::bool_t:
+        case value_type::int_t:
+        case value_type::float_t:
+        case value_type::str:
+            return x;
+
+        case value_type::sym:
+            return cur_frame->get(x);
+
+        case value_type::cons: {
+            value f = first(x);
+            if (f == sym_quote) {
+                return first(second(x));
+            } else if (f == sym_cons) {
+                return cons(
+                    eval(first(second(x)), cur_frame),
+                    eval(first(second(second(x))), cur_frame)
+                );
+            } else if (f == sym_car) {
+                return first(eval(first(second(x))));
+            } else if (f == sym_cdr) {
+                return second(eval(first(second(x))));
+            } else if (f == sym_lambda) {
+                value args = first(second(x));
+                value body = first(second(second(x)));
+                // create function
+                uint64_t fn = functions.size();
+                functions.emplace_back(args, body);
+                value closure = cons(
+                    (fn << 4) | (uint64_t)value_type::_extern,
+                    (((uint64_t)cur_frame) << 4) | (uint64_t)value_type::_extern);
+                closure -= 1; // cons -> closure
+                return closure;
+            } else if (f == sym_if) {
+                value cond = eval(first(second(x)), cur_frame);
+                if (cond == TRUE) {
+                    return eval(first(second(second(x))), cur_frame);
+                } else if (cond == FALSE) {
+                    return eval(first(second(second(second(x)))), cur_frame);
+                }
+            } else if (f == sym_set) {
+                value name = first(second(x));
+                value val = first(second(second(x)));
+                cur_frame->set(name, eval(val, cur_frame));
+                return NIL;
+            } else {
+                f = eval(f, cur_frame);
+                check_type(f, value_type::closure, "expected function for function call");
+                function* fn = &functions[*(uint64_t*)(f >> 4) >> 4];
+                frame* closure = (frame*)(*((uint64_t*)(f >> 4) + 1) >> 4);
+                frame* fr = h->alloc_frame(closure, fn->arguments.size());
+                value args = second(x);
+                for (size_t i = 0; i < fr->size; ++i) {
+                    if(args == NIL) throw std::runtime_error("argument count mismatch");
+                    fr->set_at(i, fn->arguments[i], eval(first(args), cur_frame));
+                    args = second(args);
+                }
+                return eval(fn->body, fr);
+            }
+        } break;
+
+        }
+    }
 }

@@ -8,6 +8,10 @@ add_library(emlisp inc/emlisp.h src/emlisp.cpp)
 target_compile_features(emlisp PUBLIC cxx_std_17)
 export(TARGETS emlisp FILE EmlispTargets.cmake)
 
+add_executable(emlisp_repl tests/repl.cpp)
+target_link_libraries(emlisp_repl emlisp)
+target_compile_features(emlisp_repl PUBLIC cxx_std_17)
+
 enable_testing()
 
 function(add_test_suite TEST_INOUT_PATH TEST_DRIVER)
