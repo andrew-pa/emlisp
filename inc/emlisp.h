@@ -11,6 +11,7 @@
 namespace emlisp {
     using value = uint64_t;
 
+
     enum class value_type {
         nil = 0x0,
         bool_t = 0x1,
@@ -88,6 +89,8 @@ namespace emlisp {
         frame* alloc_frame();
     };
 
+    typedef value(*extern_func_t)(class runtime*, value, void*);
+
     class runtime {
         std::unique_ptr<struct memory> h;
         std::vector<std::string> symbols;
@@ -128,5 +131,7 @@ namespace emlisp {
         void write(std::ostream&, value);
 
         value eval(value x);
+
+        void define_fn(std::string_view name, extern_func_t fn, void* data);
     };
 }

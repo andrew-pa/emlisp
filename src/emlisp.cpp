@@ -329,28 +329,44 @@ namespace emlisp {
             } else {
                 f = eval(f);
                 if (type_of(f) == value_type::_extern) {
-
+					extern_func_t fn = (extern_func_t)(*(uint64_t*)(f >> 4) >> 4);
+					void* closure = (frame*)(*((uint64_t*)(f >> 4) + 1) >> 4);
+                    value a = second(x);
+                    while (a != NIL) {
+                        first(a) = eval(first(a));
+                        a = second(a);
+                    }
+                    result = (*fn)(this, second(x), closure);
                 }
-                check_type(f, value_type::closure, "expected function for function call");
-                function* fn = &functions[*(uint64_t*)(f >> 4) >> 4];
-                frame* closure = (frame*)(*((uint64_t*)(f >> 4) + 1) >> 4);
-                std::map<value, value> fr;
-                value args = second(x);
-                for (size_t i = 0; i < fn->arguments.size(); ++i) {
-                    if(args == NIL) throw std::runtime_error("argument count mismatch");
-                    fr[fn->arguments[i]] = eval(first(args));
-                    args = second(args);
+                else {
+                    check_type(f, value_type::closure, "expected function for function call");
+                    function* fn = &functions[*(uint64_t*)(f >> 4) >> 4];
+                    frame* closure = (frame*)(*((uint64_t*)(f >> 4) + 1) >> 4);
+                    std::map<value, value> fr;
+                    value args = second(x);
+                    for (size_t i = 0; i < fn->arguments.size(); ++i) {
+                        if (args == NIL) throw std::runtime_error("argument count mismatch");
+                        fr[fn->arguments[i]] = eval(first(args));
+                        args = second(args);
+                    }
+                    scopes.push_back(closure->data);
+                    scopes.push_back(fr);
+                    result = eval(fn->body);
+                    scopes.pop_back();
+                    closure->data = scopes[scopes.size() - 1];
+                    scopes.pop_back();
                 }
-                scopes.push_back(closure->data);
-                scopes.push_back(fr);
-                result = eval(fn->body);
-                scopes.pop_back();
-                closure->data = scopes[scopes.size() - 1];
-                scopes.pop_back();
             }
         } break;
 
         }
         return result;
+    }
+
+    void runtime::define_fn(std::string_view name, extern_func_t fn, void* data) {
+        scopes[0][symbol(name)] = h->alloc_cons(
+            ((uint64_t)fn << 4) | (uint64_t)value_type::_extern,
+            ((uint64_t)data << 4) | (uint64_t)value_type::_extern
+        ) - 2;
     }
 }

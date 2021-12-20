@@ -5,6 +5,16 @@
 int main(int argc, char* argv[]) {
 	std::string line;
 	auto rt = emlisp::runtime();
+	rt.define_fn("debug-print", [](emlisp::runtime* rt, emlisp::value args, void* d) {
+		std::cout << std::hex << emlisp::first(args) << std::dec << "\n";
+		return emlisp::NIL;
+	}, nullptr);
+	int64_t counter = 0;
+	rt.define_fn("inc-counter", [](emlisp::runtime* rt, emlisp::value args, void* d) {
+		int64_t* counter = (int64_t*)d;
+		*counter = *counter + 1;
+		return rt->from_int(*counter);
+	}, &counter);
 	while (true) {
 		try {
 			std::cout << "> ";
