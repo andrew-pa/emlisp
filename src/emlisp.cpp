@@ -73,6 +73,7 @@ namespace emlisp {
         sym_cons = symbol("cons");
         sym_car = symbol("car");
         sym_cdr = symbol("cdr");
+        sym_eq = symbol("eq?");
 
         scopes.push_back({});
     }
@@ -141,6 +142,7 @@ namespace emlisp {
                     }
                     i++;
                 }
+                i++;
                 return this->from_str(s);
             } else if(src[i] == '-' || std::isdigit(src[i]) != 0) {
                 size_t start = i;
@@ -157,9 +159,15 @@ namespace emlisp {
                 return (v << 4) | (uint64_t)value_type::int_t;
             } else if(src[i] == '#') {
                 i++;
-                if(src[i] == 't') return TRUE;
-                if(src[i] == 'f') return FALSE;
-                if(src[i] == 'n') return NIL;
+                if (src[i] == 't') { i++; return TRUE; }
+                if (src[i] == 'f') {
+                    i++; return FALSE;
+                }
+                if (src[i] == 'n') {
+                    i++;
+					return NIL;
+                }
+                throw std::runtime_error("unknown #");
             } else if(src[i] == ';') {
                 while(i < src.size() && src[i] != '\n') i++;
             } else {
@@ -295,6 +303,10 @@ namespace emlisp {
                 result = first(eval(first(second(x))));
             } else if (f == sym_cdr) {
                 result = second(eval(first(second(x))));
+            } else if (f == sym_eq) {
+                value a = eval(first(second(x)));
+                value b = eval(first(second(second(x))));
+                return (a == b) ? TRUE : FALSE;
             } else if (f == sym_lambda) {
                 value args = first(second(x));
                 value body = first(second(second(x)));
@@ -304,7 +316,7 @@ namespace emlisp {
                 frame* clo = h->alloc_frame();
                 std::set<value> bound(functions[fn].arguments.begin(), functions[fn].arguments.end()),
                     free;
-                bound.insert({sym_quote, sym_lambda, sym_if, sym_set, sym_cons, sym_car, sym_cdr});
+                bound.insert({sym_quote, sym_lambda, sym_if, sym_set, sym_cons, sym_car, sym_cdr, sym_eq});
                 compute_closure(body, bound, free);
                 for (value free_name : free) {
                     clo->set(free_name, look_up(free_name));
