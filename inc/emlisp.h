@@ -4,7 +4,9 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <map>
 #include <stdexcept>
+#include <set>
 
 namespace emlisp {
     using value = uint64_t;
@@ -60,48 +62,11 @@ namespace emlisp {
     };
 
     struct frame {
-        frame* parent;
-        size_t size;
-        
-        value& indexed(size_t index) {
-            assert(index < size);
-            return *(value*)(((uint8_t*)this) + (sizeof(frame*)+sizeof(size_t)) + sizeof(value)*2*index);
-        }
-        
-        // this could really be a hashtable, it's pretty darn close
-        // basically just use name%size to find the index, then if that slot is full move to the next one etc
-        void set_at(size_t index, value name, value val) {
-            assert(index < size);
-            value* v = (value*)(((uint8_t*)this) 
-                + (sizeof(frame*)+sizeof(size_t)) + sizeof(value)*2*index);
-            *v = name;
-            *(v + 1) = val;
-        }
+        std::map<value, value> data;
 
-        value get(value sym) {
-            check_type(sym, value_type::sym);
-            value* v = (value*)(((uint8_t*)this) + (sizeof(frame*) + sizeof(size_t)));
-            for (size_t i = 0; i < size; ++i) {
-                if (v[i * 2] == sym) {
-                    return v[i * 2 + 1];
-                }
-            }
-            if (parent == nullptr) return NIL;
-            return parent->get(sym);
-        }
-        
-        void set(value sym, value val) {
-            check_type(sym, value_type::sym);
-            value* v = (value*)(((uint8_t*)this) + (sizeof(frame*) + sizeof(size_t)));
-            for (size_t i = 0; i < size; ++i) {
-                if (v[i * 2] == sym) {
-                    v[i * 2 + 1] = val;
-                }
-            }
-            if (parent == nullptr) return;
-            return parent->set(sym, val);
-        }
-    };
+        value get(value name);
+		void set(value name, value val);
+	};
 
 
     struct memory {
@@ -120,7 +85,7 @@ namespace emlisp {
 
         value alloc_cons(value fst = NIL, value snd = NIL);
         value make_str(std::string_view src);
-        frame* alloc_frame(frame* parent, size_t size);
+        frame* alloc_frame();
     };
 
     class runtime {
@@ -132,8 +97,10 @@ namespace emlisp {
         value sym_quote, sym_lambda, sym_if, sym_set,
             sym_cons, sym_car, sym_cdr;
 
-        frame* global_scope;
-        value eval(value x, frame* f);
+        std::vector<std::map<value, value>> scopes;
+        value look_up(value name);
+
+        void compute_closure(value v, const std::set<value>& bound, std::set<value>& free);
     public:
         runtime();
 
@@ -153,6 +120,7 @@ namespace emlisp {
         value from_str(std::string_view s);
 
         value symbol(std::string_view s);
+        const std::string& symbol_str(value sym) const;
 
         value cons(value fst = NIL, value snd = NIL);
 
@@ -161,5 +129,4 @@ namespace emlisp {
 
         value eval(value x);
     };
-
 }

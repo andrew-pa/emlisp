@@ -4,7 +4,7 @@
 
 int main(int argc, char* argv[]) {
 	std::string line;
-	emlisp::runtime rt;
+	auto rt = emlisp::runtime();
 	while (true) {
 		try {
 			std::cout << "> ";

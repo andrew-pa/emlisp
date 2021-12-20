@@ -2,6 +2,12 @@
 #include <algorithm>
 #include <iostream>
 
+// TODO:
+//  - fix floats
+//  - vec2..4
+//  - garbage collection
+//  - eval tests
+
 namespace emlisp {
     memory::memory(size_t num_cons, size_t num_str_bytes, size_t num_frame_bytes) {
         cons = new value[num_cons*2];
@@ -35,19 +41,31 @@ namespace emlisp {
         return (((uint64_t)str) << 4) | (uint64_t)value_type::str;
     }
 
-    frame* memory::alloc_frame(frame* parent, size_t size) {
+    frame* memory::alloc_frame() {
         frame* f = (frame*)next_frame;
         //todo: deal with oom
-        next_frame += sizeof(frame) + size * 2 * sizeof(value);
-        f->parent = parent;
-        f->size = size;
+        next_frame += sizeof(frame);
+        new(f) frame();
         return f;
     }
+
+     value frame::get(value name) {
+		check_type(name, value_type::sym);
+        auto v = data.find(name);
+        if (v != data.end())
+            return v->second;
+		throw std::runtime_error("unknown name " + std::to_string(name));
+	}
+	
+	void frame::set(value name, value val) {
+		check_type(name, value_type::sym);
+        data[name] = val;
+	}
+
 
     runtime::runtime()
         : h(std::make_unique<memory>())
     {
-        global_scope = h->alloc_frame(nullptr, 0);
         sym_quote  = symbol("quote");
         sym_lambda = symbol("lambda");
         sym_if = symbol("if");
@@ -55,6 +73,8 @@ namespace emlisp {
         sym_cons = symbol("cons");
         sym_car = symbol("car");
         sym_cdr = symbol("cdr");
+
+        scopes.push_back({});
     }
 
     value runtime::cons(value fst, value snd) {
@@ -69,6 +89,11 @@ namespace emlisp {
             return (i << 4) | (uint64_t)value_type::sym;
         }
         return (std::distance(std::begin(symbols), ix) << 4) | (uint64_t)value_type::sym;
+    }
+
+    const std::string& runtime::symbol_str(value sym) const {
+        check_type(sym, value_type::sym);
+        return symbols[sym >> 4];
     }
 
     value runtime::from_str(std::string_view s) {
@@ -207,74 +232,125 @@ namespace emlisp {
         }
     }
 
-    value runtime::eval(value x) {
-        return eval(x, global_scope);
+    void runtime::compute_closure(value v, const std::set<value>& bound, std::set<value>& free) {
+        auto ty = type_of(v);
+        if (ty == value_type::sym) {
+            if (bound.find(v) == bound.end())
+                free.insert(v);
+        } else if (ty == value_type::cons) {
+            if (first(v) == sym_lambda) {
+                value args = first(second(v));
+                auto new_bound = bound;
+                while (args != NIL) {
+                    new_bound.insert(first(args));
+                    args = second(args);
+                }
+                compute_closure(first(second(second(v))), new_bound, free);
+            }
+            else {
+                while (v != NIL) {
+                    compute_closure(first(v), bound, free);
+                    v = second(v);
+                }
+            }
+        }
     }
 
-    value runtime::eval(value x, frame* cur_frame) {
+    value runtime::look_up(value name) {
+		int i;
+		for (i = scopes.size() - 1; i >= 0; i--) {
+			auto f = scopes[i].find(name);
+			if (f != scopes[i].end()) {
+                return f->second;
+			}
+		}
+		throw std::runtime_error("unknown name " + symbol_str(name));
+    }
+
+    value runtime::eval(value x) {
+        value result = NIL;
         switch (type_of(x)) {
         case value_type::nil:
         case value_type::bool_t:
         case value_type::int_t:
         case value_type::float_t:
         case value_type::str:
-            return x;
+            result = x;
+            break;
 
         case value_type::sym:
-            return cur_frame->get(x);
+            result = look_up(x);
+            break;
 
         case value_type::cons: {
             value f = first(x);
             if (f == sym_quote) {
-                return first(second(x));
+                result = first(second(x));
             } else if (f == sym_cons) {
-                return cons(
-                    eval(first(second(x)), cur_frame),
-                    eval(first(second(second(x))), cur_frame)
+                result = cons(
+                    eval(first(second(x))),
+                    eval(first(second(second(x))))
                 );
             } else if (f == sym_car) {
-                return first(eval(first(second(x))));
+                result = first(eval(first(second(x))));
             } else if (f == sym_cdr) {
-                return second(eval(first(second(x))));
+                result = second(eval(first(second(x))));
             } else if (f == sym_lambda) {
                 value args = first(second(x));
                 value body = first(second(second(x)));
                 // create function
                 uint64_t fn = functions.size();
                 functions.emplace_back(args, body);
+                frame* clo = h->alloc_frame();
+                std::set<value> bound(functions[fn].arguments.begin(), functions[fn].arguments.end()),
+                    free;
+                bound.insert({sym_quote, sym_lambda, sym_if, sym_set, sym_cons, sym_car, sym_cdr});
+                compute_closure(body, bound, free);
+                for (value free_name : free) {
+                    clo->set(free_name, look_up(free_name));
+                }
                 value closure = cons(
                     (fn << 4) | (uint64_t)value_type::_extern,
-                    (((uint64_t)cur_frame) << 4) | (uint64_t)value_type::_extern);
+                    (((uint64_t)clo) << 4) | (uint64_t)value_type::_extern);
                 closure -= 1; // cons -> closure
-                return closure;
+                result = closure;
             } else if (f == sym_if) {
-                value cond = eval(first(second(x)), cur_frame);
+                value cond = eval(first(second(x)));
                 if (cond == TRUE) {
-                    return eval(first(second(second(x))), cur_frame);
+                    result = eval(first(second(second(x))));
                 } else if (cond == FALSE) {
-                    return eval(first(second(second(second(x)))), cur_frame);
+                    result = eval(first(second(second(second(x)))));
                 }
             } else if (f == sym_set) {
                 value name = first(second(x));
                 value val = first(second(second(x)));
-                cur_frame->set(name, eval(val, cur_frame));
-                return NIL;
+                scopes[scopes.size()-1][name] = eval(val);
+                result = NIL;
             } else {
-                f = eval(f, cur_frame);
+                f = eval(f);
+                if (type_of(f) == value_type::_extern) {
+
+                }
                 check_type(f, value_type::closure, "expected function for function call");
                 function* fn = &functions[*(uint64_t*)(f >> 4) >> 4];
                 frame* closure = (frame*)(*((uint64_t*)(f >> 4) + 1) >> 4);
-                frame* fr = h->alloc_frame(closure, fn->arguments.size());
+                std::map<value, value> fr;
                 value args = second(x);
-                for (size_t i = 0; i < fr->size; ++i) {
+                for (size_t i = 0; i < fn->arguments.size(); ++i) {
                     if(args == NIL) throw std::runtime_error("argument count mismatch");
-                    fr->set_at(i, fn->arguments[i], eval(first(args), cur_frame));
+                    fr[fn->arguments[i]] = eval(first(args));
                     args = second(args);
                 }
-                return eval(fn->body, fr);
+                scopes.push_back(closure->data);
+                scopes.push_back(fr);
+                result = eval(fn->body);
+                scopes.pop_back();
+                closure->data = scopes[scopes.size() - 1];
+                scopes.pop_back();
             }
         } break;
 
         }
+        return result;
     }
 }
