@@ -75,6 +75,15 @@ namespace emlisp {
         sym_cdr = symbol("cdr");
         sym_eq = symbol("eq?");
 
+        sym_nilp = symbol("nil?");
+        sym_boolp = symbol("bool?");
+        sym_intp = symbol("int?");
+        sym_floatp = symbol("float?");
+        sym_strp = symbol("str?");
+        sym_symp = symbol("sym?");
+        sym_consp = symbol("cons?");
+        sym_procp = symbol("proc?");
+
         scopes.push_back({});
     }
 
@@ -294,20 +303,33 @@ namespace emlisp {
             value f = first(x);
             if (f == sym_quote) {
                 result = first(second(x));
-            } else if (f == sym_cons) {
+            }
+            else if (f == sym_cons) {
                 result = cons(
                     eval(first(second(x))),
                     eval(first(second(second(x))))
                 );
-            } else if (f == sym_car) {
+            }
+            else if (f == sym_car) {
                 result = first(eval(first(second(x))));
-            } else if (f == sym_cdr) {
+            }
+            else if (f == sym_cdr) {
                 result = second(eval(first(second(x))));
-            } else if (f == sym_eq) {
+            }
+            else if (f == sym_eq) {
                 value a = eval(first(second(x)));
                 value b = eval(first(second(second(x))));
-                return (a == b) ? TRUE : FALSE;
-            } else if (f == sym_lambda) {
+                result = from_bool(a == b);
+            }
+            else if (f == sym_nilp) result = from_bool(type_of(eval(first(second(x)))) == value_type::nil);
+            else if (f == sym_boolp) result = from_bool(type_of(eval(first(second(x)))) == value_type::bool_t);
+            else if (f == sym_intp) result = from_bool(type_of(eval(first(second(x)))) == value_type::int_t);
+            else if (f == sym_floatp) result = from_bool(type_of(eval(first(second(x)))) == value_type::float_t);
+            else if (f == sym_strp) result = from_bool(type_of(eval(first(second(x)))) == value_type::str);
+            else if (f == sym_symp) result = from_bool(type_of(eval(first(second(x)))) == value_type::sym);
+            else if (f == sym_consp) result = from_bool(type_of(eval(first(second(x)))) == value_type::cons);
+            else if (f == sym_procp) result = from_bool(type_of(eval(first(second(x)))) == value_type::closure);
+            else if (f == sym_lambda) {
                 value args = first(second(x));
                 value body = first(second(second(x)));
                 // create function
@@ -316,7 +338,8 @@ namespace emlisp {
                 frame* clo = h->alloc_frame();
                 std::set<value> bound(functions[fn].arguments.begin(), functions[fn].arguments.end()),
                     free;
-                bound.insert({sym_quote, sym_lambda, sym_if, sym_set, sym_cons, sym_car, sym_cdr, sym_eq});
+                bound.insert({sym_quote, sym_lambda, sym_if, sym_set, sym_cons, sym_car, sym_cdr,
+                    sym_eq, sym_nilp, sym_boolp, sym_intp, sym_floatp, sym_strp, sym_symp, sym_consp, sym_procp});
                 compute_closure(body, bound, free);
                 for (value free_name : free) {
                     clo->set(free_name, look_up(free_name));

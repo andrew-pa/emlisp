@@ -98,7 +98,9 @@ namespace emlisp {
         value parse_value(std::string_view src, size_t& i);
 
         value sym_quote, sym_lambda, sym_if, sym_set,
-            sym_cons, sym_car, sym_cdr, sym_eq;
+            sym_cons, sym_car, sym_cdr, sym_eq,
+            sym_nilp, sym_boolp, sym_intp, sym_floatp, sym_strp,
+            sym_symp, sym_consp, sym_procp;
 
         std::vector<std::map<value, value>> scopes;
         value look_up(value name);
