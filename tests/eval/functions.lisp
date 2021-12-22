@@ -4,17 +4,10 @@
 
 (set! revcons (lambda (x y) (cons y x)))
 (set! x (revcons 'a 'b))
-(assert-eq! 'a (car x) "function with two arguments 1")
-(assert-eq! 'b (car (cdr x)) "function with two arguments 2")
+(assert-eq! 'b (car x) "function with two arguments 1")
+(assert-eq! 'a (cdr x) "function with two arguments 2")
 
-(set! test-closure-f (lambda (x) (lambda (y) (cons x y))))
-(set! test-closure (test-closure-f 'hello))
-(assert-eq! (test-closure) 'hello)
-(assert-eq! ((test-closure-f 2)) 2)
-(assert-eq! (test-closure) 'hello)
-
-(set! equal?
-  (lambda (a b)
+(define (equal? a b)
     (if (cons? a)
       (if (cons? b)
         (if (equal? (car a) (car b))
@@ -23,8 +16,17 @@
         #f)
       (eq? a b)))
 
-(set! mut-closure-f
-  (lambda (x)
+; make sure equal? actually works
+(assert! (equal? '(a b c) '(a b c)))
+(assert! (equal? '(a (b (c))) '(a (b (c)))))
+
+(set! test-closure-f (lambda (x) (lambda (y) (cons x y))))
+(set! test-closure (test-closure-f 'hello))
+(assert! (equal? (test-closure 3) (cons 'hello 3)))
+(assert! (equal? (test-closure 5) (cons 'hello 5)))
+(assert! (equal? ((test-closure-f 5) 7) (cons 5 7)))
+
+(define (mut-closure-f x)
     (lambda (msg) 
       (if (eq? msg 'get) x
         (if (eq? msg 'inc) (set! x (cons x 2))
@@ -33,4 +35,6 @@
 (set! test-closure (mut-closure-f 3))
 (assert-eq! (test-closure 'get) 3)
 (assert-eq! (test-closure 'inc) #n)
-(assert-eq! (test-closure 'get) 3)
+(assert! (equal? (test-closure 'get) (cons 3 2)))
+(assert-eq! (test-closure 'inc) #n)
+(assert! (equal? (test-closure 'get) (cons (cons 3 2) 2)))

@@ -2,8 +2,22 @@
 #include <fstream>
 #include "emlisp.h"
 
+std::string get_file_contents(const char* filename) {
+    std::ifstream in(filename, std::ios::in | std::ios::binary);
+    if (in) {
+        std::string contents;
+        in.seekg(0, std::ios::end);
+        contents.resize(in.tellg());
+        in.seekg(0, std::ios::beg);
+        in.read(&contents[0], contents.size());
+        in.close();
+        return(contents);
+    }
+    throw errno;
+}
+
 int main(int argc, char* argv[]) {
-    std::ifstream input(argv[1]);
+    auto source = get_file_contents(argv[1]);
 
     emlisp::runtime rt;
 
@@ -39,11 +53,13 @@ int main(int argc, char* argv[]) {
         return emlisp::NIL;
 	}, nullptr);
 
-    std::string s;
-    while(std::getline(input, s)) {
+    auto src_vals = rt.read_all(source);
+
+    for(auto v : src_vals) {
         try {
-            emlisp::value v = rt.read(s);
-            v = rt.eval(v);
+            rt.write(std::cout, v);
+            std::cout << "\n";
+            rt.eval(v);
         }
         catch(std::runtime_error e) {
             std::cout << "error: " << e.what() << "\n";

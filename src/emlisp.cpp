@@ -70,6 +70,7 @@ namespace emlisp {
         sym_lambda = symbol("lambda");
         sym_if = symbol("if");
         sym_set = symbol("set!");
+        sym_define = symbol("define");
         sym_cons = symbol("cons");
         sym_car = symbol("car");
         sym_cdr = symbol("cdr");
@@ -83,6 +84,9 @@ namespace emlisp {
         sym_symp = symbol("sym?");
         sym_consp = symbol("cons?");
         sym_procp = symbol("proc?");
+
+        reserved_syms = { sym_quote, sym_lambda, sym_if, sym_set, sym_cons, sym_car, sym_cdr, sym_define,
+                    sym_eq, sym_nilp, sym_boolp, sym_intp, sym_floatp, sym_strp, sym_symp, sym_consp, sym_procp };
 
         scopes.push_back({});
     }
@@ -193,6 +197,15 @@ namespace emlisp {
         return parse_value(src, i);
     }
 
+    std::vector<value> runtime::read_all(std::string_view src) {
+        size_t i = 0;
+        std::vector<value> vals;
+        while (i < src.size()) {
+            vals.emplace_back(parse_value(src, i));
+        }
+        return vals;
+    }
+ 
     void runtime::write(std::ostream& os, value v) {
         switch(type_of(v)) {
             case value_type::nil:
@@ -263,8 +276,9 @@ namespace emlisp {
                     args = second(args);
                 }
                 compute_closure(first(second(second(v))), new_bound, free);
-            }
-            else {
+            } else if (first(v) == sym_quote) {
+                // skip inside of quote
+            } else {
                 while (v != NIL) {
                     compute_closure(first(v), bound, free);
                     v = second(v);
@@ -338,8 +352,7 @@ namespace emlisp {
                 frame* clo = h->alloc_frame();
                 std::set<value> bound(functions[fn].arguments.begin(), functions[fn].arguments.end()),
                     free;
-                bound.insert({sym_quote, sym_lambda, sym_if, sym_set, sym_cons, sym_car, sym_cdr,
-                    sym_eq, sym_nilp, sym_boolp, sym_intp, sym_floatp, sym_strp, sym_symp, sym_consp, sym_procp});
+                bound.insert(reserved_syms.begin(), reserved_syms.end());
                 compute_closure(body, bound, free);
                 for (value free_name : free) {
                     clo->set(free_name, look_up(free_name));
@@ -358,10 +371,53 @@ namespace emlisp {
                 }
             } else if (f == sym_set) {
                 value name = first(second(x));
-                value val = first(second(second(x)));
-                scopes[scopes.size()-1][name] = eval(val);
+                value val = eval(first(second(second(x))));
+				int i;
+				for (i = scopes.size() - 1; i >= 0; i--) {
+					auto f = scopes[i].find(name);
+					if (f != scopes[i].end()) {
+						f->second = val;
+					}
+				}
+                scopes[scopes.size()-1][name] = val;
                 result = NIL;
-            } else {
+            }
+            else if (f == sym_define) {
+                value head = first(second(x));
+                if (type_of(head) == value_type::sym) {
+					value val = first(second(second(x)));
+					scopes[scopes.size() - 1][head] = eval(val);
+					result = NIL;
+                }
+                else if (type_of(head) == value_type::cons) {
+                    value name = first(head);
+					value args = second(head);
+					value body = first(second(second(x)));
+					// create function
+					uint64_t fn = functions.size();
+					functions.emplace_back(args, body);
+					frame* clo = h->alloc_frame();
+					std::set<value> bound(functions[fn].arguments.begin(), functions[fn].arguments.end()),
+						free;
+					bound.insert(reserved_syms.begin(), reserved_syms.end());
+                    bound.insert(name);
+					compute_closure(body, bound, free);
+					for (value free_name : free) {
+						clo->set(free_name, look_up(free_name));
+					}
+					value closure = cons(
+						(fn << 4) | (uint64_t)value_type::_extern,
+						(((uint64_t)clo) << 4) | (uint64_t)value_type::_extern);
+					closure -= 1; // cons -> closure
+                    clo->set(name, closure); //enable recursion
+					scopes[scopes.size() - 1][name] = closure;
+                    result = NIL;
+                }
+                else {
+                    throw std::runtime_error("invalid define");
+                }
+            } 
+            else {
                 f = eval(f);
                 if (type_of(f) == value_type::_extern) {
 					extern_func_t fn = (extern_func_t)(*(uint64_t*)(f >> 4) >> 4);
