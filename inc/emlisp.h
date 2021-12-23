@@ -11,7 +11,6 @@
 namespace emlisp {
     using value = uint64_t;
 
-
     enum class value_type {
         nil = 0x0,
         bool_t = 0x1,
@@ -69,7 +68,6 @@ namespace emlisp {
 		void set(value name, value val);
 	};
 
-
     struct memory {
         value* cons;
         value* next_cons;
@@ -101,6 +99,7 @@ namespace emlisp {
             sym_cons, sym_car, sym_cdr, sym_eq, sym_define,
             sym_nilp, sym_boolp, sym_intp, sym_floatp, sym_strp,
             sym_symp, sym_consp, sym_procp;
+
         std::vector<value> reserved_syms;
 
         std::vector<std::map<value, value>> scopes;

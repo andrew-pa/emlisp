@@ -4,7 +4,7 @@ project(emlisp VERSION 1.0 LANGUAGES CXX)
 
 include_directories(inc/)
 
-add_library(emlisp inc/emlisp.h src/emlisp.cpp)
+add_library(emlisp inc/emlisp.h src/memory.cpp src/reader.cpp src/eval.cpp)
 target_compile_features(emlisp PUBLIC cxx_std_17)
 export(TARGETS emlisp FILE EmlispTargets.cmake)
 
