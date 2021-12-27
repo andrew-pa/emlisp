@@ -10,8 +10,8 @@
 //  + eval tests
 
 namespace emlisp {
-    runtime::runtime()
-        : h(std::make_unique<memory>())
+    runtime::runtime(size_t num_cons, size_t num_str_bytes, size_t num_frame_bytes)
+        : num_cons(num_cons), num_str_bytes(num_str_bytes), num_frame_bytes(num_frame_bytes)
     {
         sym_quote  = symbol("quote");
         sym_lambda = symbol("lambda");
@@ -36,6 +36,18 @@ namespace emlisp {
                     sym_eq, sym_nilp, sym_boolp, sym_intp, sym_floatp, sym_strp, sym_symp, sym_consp, sym_procp };
 
         scopes.push_back({});
+        
+        acons = new value[num_cons*2];
+        assert(acons != nullptr);
+        next_cons = acons;
+
+        strings = new char[num_str_bytes];
+        assert(strings != nullptr);
+        next_str = strings;
+
+        frames = new uint8_t[num_frame_bytes];
+        assert(frames != nullptr);
+        next_frame = frames;
     }
 
     function::function(value arg_list, value body)
@@ -134,7 +146,7 @@ namespace emlisp {
                 // create function
                 uint64_t fn = functions.size();
                 functions.emplace_back(args, body);
-                frame* clo = h->alloc_frame();
+                frame* clo = alloc_frame();
                 std::set<value> bound(functions[fn].arguments.begin(), functions[fn].arguments.end()),
                     free;
                 bound.insert(reserved_syms.begin(), reserved_syms.end());
@@ -181,7 +193,7 @@ namespace emlisp {
 					// create function
 					uint64_t fn = functions.size();
 					functions.emplace_back(args, body);
-					frame* clo = h->alloc_frame();
+					frame* clo = alloc_frame();
 					std::set<value> bound(functions[fn].arguments.begin(), functions[fn].arguments.end()),
 						free;
 					bound.insert(reserved_syms.begin(), reserved_syms.end());
@@ -203,10 +215,10 @@ namespace emlisp {
                 }
             } 
             else {
-                f = eval(f);
-                if (type_of(f) == value_type::_extern) {
-					extern_func_t fn = (extern_func_t)(*(uint64_t*)(f >> 4) >> 4);
-					void* closure = (frame*)(*((uint64_t*)(f >> 4) + 1) >> 4);
+                auto fv = eval(f);
+                if (type_of(fv) == value_type::_extern) {
+					extern_func_t fn = (extern_func_t)(*(uint64_t*)(fv >> 4) >> 4);
+					void* closure = (frame*)(*((uint64_t*)(fv >> 4) + 1) >> 4);
                     value a = second(x);
                     while (a != NIL) {
                         first(a) = eval(first(a));
@@ -215,9 +227,9 @@ namespace emlisp {
                     result = (*fn)(this, second(x), closure);
                 }
                 else {
-                    check_type(f, value_type::closure, "expected function for function call");
-                    function* fn = &functions[*(uint64_t*)(f >> 4) >> 4];
-                    frame* closure = (frame*)(*((uint64_t*)(f >> 4) + 1) >> 4);
+                    check_type(fv, value_type::closure, "expected function for function call");
+                    function* fn = &functions[*(uint64_t*)(fv >> 4) >> 4];
+                    frame* closure = (frame*)(*((uint64_t*)(fv >> 4) + 1) >> 4);
                     std::map<value, value> fr;
                     value args = second(x);
                     for (size_t i = 0; i < fn->arguments.size(); ++i) {
@@ -240,7 +252,7 @@ namespace emlisp {
     }
 
     void runtime::define_fn(std::string_view name, extern_func_t fn, void* data) {
-        scopes[0][symbol(name)] = h->alloc_cons(
+        scopes[0][symbol(name)] = cons(
             ((uint64_t)fn << 4) | (uint64_t)value_type::_extern,
             ((uint64_t)data << 4) | (uint64_t)value_type::_extern
         ) - 2;

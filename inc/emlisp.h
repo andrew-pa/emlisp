@@ -68,29 +68,14 @@ namespace emlisp {
 		void set(value name, value val);
 	};
 
-    struct memory {
-        value* cons;
-        value* next_cons;
-        char* strings;
-        char* next_str;
-        uint8_t* frames;
-        uint8_t* next_frame;
-
-        memory(
-            size_t num_cons = 8192,
-            size_t num_str_bytes = 1024*1024,
-            size_t num_frame_bytes = 8192
-        );
-
-        value alloc_cons(value fst = NIL, value snd = NIL);
-        value make_str(std::string_view src);
-        frame* alloc_frame();
-    };
-
     typedef value(*extern_func_t)(class runtime*, value, void*);
 
+    struct heap_info {
+        size_t old_cons_size, old_frames_size,
+            new_cons_size, new_frames_size;
+    };
+
     class runtime {
-        std::unique_ptr<struct memory> h;
         std::vector<std::string> symbols;
         std::vector<function> functions;
         value parse_value(std::string_view src, size_t& i);
@@ -106,8 +91,27 @@ namespace emlisp {
         value look_up(value name);
 
         void compute_closure(value v, const std::set<value>& bound, std::set<value>& free);
+        
+        // heap
+        size_t num_cons, num_str_bytes, num_frame_bytes;
+        value* acons;
+        value* next_cons;
+        char* strings;
+        char* next_str;
+        uint8_t* frames;
+        uint8_t* next_frame;
+
+        frame* alloc_frame();
+    
+        void gc_process(value& c,
+            std::map<value, value>& live_cons,
+            std::map<frame*, frame*>& live_frames,
+            value*& new_next_cons,
+            uint8_t*& new_next_frame);
     public:
-        runtime();
+        runtime(size_t num_cons = 2048,
+            size_t num_str_bytes = 4096,
+            size_t num_frame_bytes = 8192);
 
         inline value from_bool(bool b) {
             return b ? 0x11 : 0x01;
@@ -136,5 +140,7 @@ namespace emlisp {
         value eval(value x);
 
         void define_fn(std::string_view name, extern_func_t fn, void* data);
+
+        void collect_garbage(heap_info* res_info = nullptr);
     };
 }

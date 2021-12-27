@@ -60,6 +60,7 @@ int main(int argc, char* argv[]) {
             rt.write(std::cout, v);
             std::cout << "\n";
             rt.eval(v);
+            rt.collect_garbage();
         }
         catch(std::runtime_error e) {
             std::cout << "error: " << e.what() << "\n";

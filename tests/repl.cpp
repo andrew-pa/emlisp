@@ -15,6 +15,16 @@ int main(int argc, char* argv[]) {
 		*counter = *counter + 1;
 		return rt->from_int(*counter);
 	}, &counter);
+	rt.define_fn("run-gc", [](emlisp::runtime* rt, emlisp::value args, void* d) {
+		emlisp::heap_info ifo;
+		rt->collect_garbage(&ifo);
+
+        std::cout << "old heap: " << ifo.old_cons_size << " cons, " << ifo.old_frames_size << " frames\n"
+            << "new heap: " << ifo.new_cons_size << " cons, " << ifo.new_frames_size << " frames\n"
+            << "freed " << (ifo.old_cons_size - ifo.new_cons_size) << " cons, " << (ifo.old_frames_size - ifo.new_frames_size) << " frames\n";
+
+		return emlisp::NIL;
+	}, nullptr);
 	while (true) {
 		try {
 			std::cout << "> ";
