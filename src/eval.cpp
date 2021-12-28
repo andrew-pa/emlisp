@@ -11,7 +11,8 @@
 
 namespace emlisp {
     runtime::runtime(size_t num_cons, size_t num_str_bytes, size_t num_frame_bytes)
-        : num_cons(num_cons), num_str_bytes(num_str_bytes), num_frame_bytes(num_frame_bytes)
+        : num_cons(num_cons), num_str_bytes(num_str_bytes), num_frame_bytes(num_frame_bytes),
+        next_extern_value_handle(1)
     {
         sym_quote  = symbol("quote");
         sym_lambda = symbol("lambda");

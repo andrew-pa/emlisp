@@ -62,10 +62,12 @@ namespace emlisp {
             value*& new_next_cons,
             uint8_t*& new_next_frame)
     {
+        auto old_c = c;
         if (type_of(c) == value_type::cons || type_of(c) == value_type::closure || type_of(c) == value_type::_extern) {
             auto existing_copy = live_cons.find(c);
             if (existing_copy != live_cons.end()) {
                 c = existing_copy->second;
+                return;
             }
             else {
                 auto new_addr = ((uint64_t)(new_next_cons) << 4) | (uint64_t)type_of(c);
@@ -81,21 +83,27 @@ namespace emlisp {
             else if (type_of(c) == value_type::closure) {
 				function* fn = &functions[*(uint64_t*)(c >> 4) >> 4];
                 gc_process(fn->body, live_cons, live_frames, new_next_cons, new_next_frame);
-				auto fr = (frame*)(*((value*)(c >> 4) + 1) >> 4);
+                auto old_frv = *((value*)(c >> 4) + 1);
+				auto fr = (frame*)(old_frv >> 4);
                 auto exi_fr = live_frames.find(fr);
                 if (exi_fr != live_frames.end()) {
                     fr = exi_fr->second;
                 }
                 else {
                     auto new_fr = (frame*)new_next_frame;
+                    new_next_frame += sizeof(frame);
                     memcpy(new_fr, fr, sizeof(frame));
-                    *((value*)(c >> 4) + 1) = (value)(((uint64_t)(new_fr) << 4) | (uint64_t)value_type::_extern);
+                    *((value*)(c >> 4) + 1) = 
+                        (value)(((uint64_t)(new_fr) << 4) | (uint64_t)value_type::_extern);
                     live_frames[fr] = new_fr;
                     fr = new_fr;
                 }
-                new_next_frame += sizeof(frame);
-                for (auto& [name, value] : fr->data) {
-					gc_process(value, live_cons, live_frames, new_next_cons, new_next_frame);
+                for (auto& [name, val] : fr->data) {
+                    if (val == old_c) {
+                        val = c;
+                        continue;
+                    }
+					gc_process(val, live_cons, live_frames, new_next_cons, new_next_frame);
                 }
             }
         }
@@ -119,6 +127,10 @@ namespace emlisp {
             }
         }
 
+        for (auto& p : extern_values) {
+            gc_process(p.second.first, live_cons, live_frames, new_next_cons, new_next_frame);
+        }
+
         if (res_info != nullptr) {
             res_info->old_cons_size = (next_cons - acons) / 2;
             res_info->old_frames_size = (next_frame - frames) / sizeof(frame);
@@ -126,11 +138,68 @@ namespace emlisp {
             res_info->new_frames_size = (new_next_frame - new_frames) / sizeof(frame);
         }
 
+#ifdef _DEBUG
+        // make it abundantly clear if we still have pointers to the old heap
+        memset(acons, 0xcdcdcdcd, sizeof(value) * 2 * num_cons);
+        memset(frames, 0xcdcdcdcd, num_frame_bytes);
+#endif
+
         delete acons;
         delete frames;
         acons = new_cons;
         next_cons = new_next_cons;
         frames = new_frames;
         next_frame = new_next_frame;
+    }
+
+    value_handle runtime::handle_for(value v) {
+        auto h = next_extern_value_handle++;
+        extern_values[h] = { v, 1 };
+        return value_handle(this, h);
+    }
+
+    value_handle::value_handle(const value_handle& other)
+        : rt(other.rt), h(other.h)
+    {
+        rt->extern_values[h].second++;
+    }
+    value_handle& value_handle::operator =(const value_handle& other) {
+        rt->extern_values[h].second--;
+        rt = other.rt;
+        h = other.h;
+        rt->extern_values[h].second++;
+        return *this;
+    }
+    value_handle::value_handle(value_handle&& other)
+        : rt(other.rt), h(other.h)
+    {
+        other.rt = nullptr;
+        other.h = 0;
+    }
+
+    value_handle& value_handle::operator =(value_handle&& other) {
+        rt->extern_values[h].second--;
+        rt = other.rt;
+        h = other.h;
+        other.rt = nullptr;
+        other.h = 0;
+        return *this;
+    }
+
+    const value& value_handle::operator*() const {
+        return rt->extern_values[h].first;
+    }
+    value& value_handle::operator*() {
+        return rt->extern_values[h].first;
+    }
+    value_handle::operator value() {
+        return rt->extern_values[h].first;
+    }
+
+    value_handle::~value_handle() {
+        if (h == 0 || rt == nullptr) return;
+        if (rt->extern_values[h].second-- <= 0) {
+            rt->extern_values.erase(h);
+        }
     }
 }

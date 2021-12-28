@@ -53,14 +53,22 @@ int main(int argc, char* argv[]) {
         return emlisp::NIL;
 	}, nullptr);
 
-    auto src_vals = rt.read_all(source);
+    auto src_vals = rt.handle_for(rt.read_all(source));
 
-    for(auto v : src_vals) {
+    auto cur = src_vals;
+    while(*cur != emlisp::NIL) {
         try {
-            rt.write(std::cout, v);
+            rt.write(std::cout, emlisp::first(*cur));
             std::cout << "\n";
-            rt.eval(v);
-            rt.collect_garbage();
+            rt.eval(emlisp::first(*cur));
+            emlisp::heap_info ifo;
+            rt.collect_garbage(&ifo);
+		    std::cout << "old heap: " << ifo.old_cons_size << " cons, " << ifo.old_frames_size << " frames\n"
+				<< "new heap: " << ifo.new_cons_size << " cons, " << ifo.new_frames_size << " frames\n"
+				<< "freed " << (ifo.old_cons_size - ifo.new_cons_size) << " cons, " << (ifo.old_frames_size - ifo.new_frames_size) << " frames\n";
+            rt.write(std::cout, *src_vals);
+            std::cout << "\n---\n";
+            cur = rt.handle_for(emlisp::second(*cur));
         }
         catch(std::runtime_error e) {
             std::cout << "error: " << e.what() << "\n";

@@ -108,6 +108,9 @@ namespace emlisp {
             std::map<frame*, frame*>& live_frames,
             value*& new_next_cons,
             uint8_t*& new_next_frame);
+
+        std::map<uint64_t, std::pair<value, uint64_t>> extern_values;
+        uint64_t next_extern_value_handle;
     public:
         runtime(size_t num_cons = 2048,
             size_t num_str_bytes = 4096,
@@ -134,7 +137,7 @@ namespace emlisp {
         value cons(value fst = NIL, value snd = NIL);
 
         value read(std::string_view src);
-        std::vector<value> read_all(std::string_view src);
+        value read_all(std::string_view src);
         void write(std::ostream&, value);
 
         value eval(value x);
@@ -142,5 +145,25 @@ namespace emlisp {
         void define_fn(std::string_view name, extern_func_t fn, void* data);
 
         void collect_garbage(heap_info* res_info = nullptr);
+
+        friend class value_handle;
+
+        value_handle handle_for(value v);
+    };
+
+    // must live as long as the runtime from which it was obtained
+    class value_handle {
+        runtime* rt;
+        uint64_t h;
+    public:
+        value_handle(runtime* rt, uint64_t h) : rt(rt), h(h) {}
+        value_handle(const value_handle& other);
+        value_handle& operator =(const value_handle& other);
+        value_handle(value_handle&& other);
+        value_handle& operator =(value_handle&& other);
+        const value& operator*() const;
+        value& operator*();
+        operator value();
+        ~value_handle();
     };
 }

@@ -85,13 +85,13 @@ namespace emlisp {
         return parse_value(src, i);
     }
 
-    std::vector<value> runtime::read_all(std::string_view src) {
+    value runtime::read_all(std::string_view src) {
         size_t i = 0;
-        std::vector<value> vals;
+        value vals = NIL;
         while (i < src.size()) {
-            vals.emplace_back(parse_value(src, i));
+            vals = cons(parse_value(src, i), vals);
         }
-        return vals;
+        return reverse_list(vals);
     }
 
     void runtime::write(std::ostream& os, value v) {
