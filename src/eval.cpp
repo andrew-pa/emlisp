@@ -3,16 +3,17 @@
 #include <iostream>
 
 // TODO:
-//  - fix floats
+//  + fix floats
 //  - vec2..4
-//  - garbage collection
-//  - external value handles
+//  + garbage collection
+//  + external value handles
 //  + eval tests
+//  ? macros
+//  + standard library
 
 namespace emlisp {
-    runtime::runtime(size_t num_cons, size_t num_str_bytes, size_t num_frame_bytes)
-        : num_cons(num_cons), num_str_bytes(num_str_bytes), num_frame_bytes(num_frame_bytes),
-        next_extern_value_handle(1)
+    runtime::runtime(size_t heap_size)
+        : heap_size(heap_size), next_extern_value_handle(1)
     {
         sym_quote  = symbol("quote");
         sym_lambda = symbol("lambda");
@@ -37,18 +38,10 @@ namespace emlisp {
                     sym_eq, sym_nilp, sym_boolp, sym_intp, sym_floatp, sym_strp, sym_symp, sym_consp, sym_procp };
 
         scopes.push_back({});
-        
-        acons = new value[num_cons*2];
-        assert(acons != nullptr);
-        next_cons = acons;
 
-        strings = new char[num_str_bytes];
-        assert(strings != nullptr);
-        next_str = strings;
-
-        frames = new uint8_t[num_frame_bytes];
-        assert(frames != nullptr);
-        next_frame = frames;
+        heap = new uint8_t[heap_size];
+        assert(heap != nullptr);
+        heap_next = heap;
     }
 
     function::function(value arg_list, value body)

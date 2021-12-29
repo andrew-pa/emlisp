@@ -48,6 +48,7 @@ namespace emlisp {
             } else if(src[i] == '-' || std::isdigit(src[i]) != 0) {
                 size_t start = i;
                 bool is_float = false;
+                if (src[i] == '-') i++;
                 while(i < src.size() && (std::isdigit(src[i]) != 0 || src[i] == '.')) {
                     if(src[i] == '.') is_float = true;
                     i++;
@@ -94,43 +95,45 @@ namespace emlisp {
         return reverse_list(vals);
     }
 
-    void runtime::write(std::ostream& os, value v) {
-        switch(type_of(v)) {
-            case value_type::nil:
-                os << "nil";
-                break;
-            case value_type::bool_t:
-                os << (v == TRUE ? "#t" : "#f");
-                break;
-            case value_type::int_t:
-                os << std::to_string((long long)v >> 4);
-                break;
-            case value_type::float_t: {
-                                          auto vv = v >> 4;
-                                          auto* vf = (float*)&vv;
-                                          os << *vf;
-                                      } break;
-            case value_type::sym:
-                                      os << this->symbols[v >> 4];
-                                      break;
-            case value_type::str:
-                                      os << '"' << (char*)(v >> 4) << '"';
-                                      break;
-            case value_type::cons:
-                                      os << "(";
-                                      write(os, first(v));
-                                      os << " . ";
-                                      write(os, second(v));
-                                      os << ")";
-                                      break;
-            case value_type::closure:
-                                      os << "#closure" << "<" << std::hex << v << std::dec << ">";
-                                      break;
-            case value_type::_extern:
-                                      os << "<" << std::hex << v << std::dec << ">";
-                                      break;
-        }
-    }
+	void runtime::write(std::ostream& os, value v) {
+		switch (type_of(v)) {
+		case value_type::nil:
+			os << "nil";
+			break;
+		case value_type::bool_t:
+			os << (v == TRUE ? "#t" : "#f");
+			break;
+		case value_type::int_t:
+			os << std::to_string((long long)v >> 4);
+			break;
+		case value_type::float_t: {
+			auto vv = v >> 4;
+			auto* vf = (float*)&vv;
+			os << *vf;
+		} break;
+		case value_type::sym:
+			os << this->symbols[v >> 4];
+			break;
+        case value_type::str: {
+            std::string_view str((char*)((v >> 4) + sizeof(uint32_t)),
+                *(uint32_t*)(v >> 4));
+            os << '"' << str << '"';
+        } break;
+		case value_type::cons:
+			os << "(";
+			write(os, first(v));
+			os << " . ";
+			write(os, second(v));
+			os << ")";
+			break;
+		case value_type::closure:
+			os << "#closure" << "<" << std::hex << v << std::dec << ">";
+			break;
+		case value_type::_extern:
+			os << "<" << std::hex << v << std::dec << ">";
+			break;
+		}
+	}
 
     std::ostream& operator <<(std::ostream& os, value_type vt) {
         const char* names[] = {

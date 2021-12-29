@@ -71,8 +71,7 @@ namespace emlisp {
     typedef value(*extern_func_t)(class runtime*, value, void*);
 
     struct heap_info {
-        size_t old_cons_size, old_frames_size,
-            new_cons_size, new_frames_size;
+        size_t new_size, old_size;
     };
 
     class runtime {
@@ -92,29 +91,20 @@ namespace emlisp {
 
         void compute_closure(value v, const std::set<value>& bound, std::set<value>& free);
         
-        // heap
-        size_t num_cons, num_str_bytes, num_frame_bytes;
-        value* acons;
-        value* next_cons;
-        char* strings;
-        char* next_str;
-        uint8_t* frames;
-        uint8_t* next_frame;
+        uint8_t* heap;
+        uint8_t* heap_next;
+        size_t heap_size;
 
         frame* alloc_frame();
     
         void gc_process(value& c,
-            std::map<value, value>& live_cons,
-            std::map<frame*, frame*>& live_frames,
-            value*& new_next_cons,
-            uint8_t*& new_next_frame);
+            std::map<value, value>& live_vals,
+            uint8_t*& new_next);
 
         std::map<uint64_t, std::pair<value, uint64_t>> extern_values;
         uint64_t next_extern_value_handle;
     public:
-        runtime(size_t num_cons = 2048,
-            size_t num_str_bytes = 4096,
-            size_t num_frame_bytes = 8192);
+        runtime(size_t heap_size = 1024*1024);
 
         inline value from_bool(bool b) {
             return b ? 0x11 : 0x01;

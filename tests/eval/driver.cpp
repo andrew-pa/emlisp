@@ -63,18 +63,17 @@ int main(int argc, char* argv[]) {
             rt.eval(emlisp::first(*cur));
             emlisp::heap_info ifo;
             rt.collect_garbage(&ifo);
-		    std::cout << "old heap: " << ifo.old_cons_size << " cons, " << ifo.old_frames_size << " frames\n"
-				<< "new heap: " << ifo.new_cons_size << " cons, " << ifo.new_frames_size << " frames\n"
-				<< "freed " << (ifo.old_cons_size - ifo.new_cons_size) << " cons, " << (ifo.old_frames_size - ifo.new_frames_size) << " frames\n";
-            rt.write(std::cout, *src_vals);
-            std::cout << "\n---\n";
-            cur = rt.handle_for(emlisp::second(*cur));
-        }
-        catch(std::runtime_error e) {
-            std::cout << "error: " << e.what() << "\n";
-            exit(2);
-        }
-    }
+			std::cout << "old heap had " << ifo.old_size << " bytes, new heap has " << ifo.new_size << " bytes\n"
+				<< "collected " << (ifo.old_size - ifo.new_size) << " bytes\n";
+			rt.write(std::cout, *src_vals);
+			std::cout << "\n---\n";
+			cur = rt.handle_for(emlisp::second(*cur));
+		}
+		catch (std::runtime_error e) {
+			std::cout << "error: " << e.what() << "\n";
+			exit(2);
+		}
+	}
 
     return 0;
 }
