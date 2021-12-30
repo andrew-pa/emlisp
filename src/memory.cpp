@@ -34,6 +34,18 @@ namespace emlisp {
         return (((uint64_t)str) << 4) | (uint64_t)value_type::str;
     }
 
+    value runtime::from_fvec(uint32_t size, float* src_v) {
+		if (heap_next - heap > heap_size) {
+			throw std::runtime_error("out of memory");
+		}
+		uint32_t* v = (uint32_t*)heap_next;
+		heap_next += size*sizeof(float) + sizeof(uint32_t);
+        memcpy(v + 1, src_v, sizeof(float) * size);
+        *v = size;
+		return (((uint64_t)v) << 4) | (uint64_t)value_type::fvec;
+    
+    }
+
     value frame::get(value name) {
         check_type(name, value_type::sym);
         auto v = data.find(name);
@@ -63,66 +75,79 @@ namespace emlisp {
     }
 
     void runtime::gc_process(value& c, std::map<value, value>& live_vals, uint8_t*& new_next) {
+        auto ty = type_of(c);
+        // only proceed if the value is on the heap
+        if (!(ty == value_type::cons
+            || ty == value_type::closure
+            || ty == value_type::_extern
+            || ty == value_type::str
+            || ty == value_type::fvec)) return;
+
         auto old_c = c;
+        // check to see if we've already processed this value
 		auto existing_copy = live_vals.find(c);
 		if (existing_copy != live_vals.end()) {
 			c = existing_copy->second;
 			return;
 		}
-            
-        if (type_of(c) == value_type::cons
-            || type_of(c) == value_type::closure 
-            || type_of(c) == value_type::_extern)
-        {
-        
-			auto new_addr = ((uint64_t)(new_next) << 4) | (uint64_t)type_of(c);
-			live_vals[c] = new_addr;
-			memcpy((void*)new_next, (void*)(c >> 4), sizeof(value) * 2);
-			c = new_addr;
-			new_next += 2 * sizeof(value);
 
-            if (type_of(c) == value_type::cons) {
-                gc_process(first(c), live_vals, new_next);
-                gc_process(second(c), live_vals, new_next);
-            }
-            else if (type_of(c) == value_type::closure) {
-				function* fn = &functions[*(uint64_t*)(c >> 4) >> 4];
-                gc_process(fn->body, live_vals, new_next);
-                auto old_frv = *((value*)(c >> 4) + 1);
-
-                auto exi_fr = live_vals.find(old_frv);
-                if (exi_fr != live_vals.end()) {
-					*((value*)(c >> 4) + 1) = exi_fr->second;
-                    return;
-                }
-
-				auto fr = (frame*)(old_frv >> 4);
-				auto new_fr = (frame*)new_next;
-				new_next += sizeof(frame);
-				memcpy(new_fr, fr, sizeof(frame));
-				auto new_frv =
-					(value)((((uint64_t)new_fr) << 4) | (uint64_t)value_type::_extern);
-				*((value*)(c >> 4) + 1) = new_frv;
-				live_vals[old_frv] = new_frv;
-
-                for (auto& [name, val] : new_fr->data) {
-                    if (val == old_c) {
-                        val = c;
-                        continue;
-                    }
-					gc_process(val, live_vals, new_next);
-                }
-            }
+        // copy the value itself
+        if (ty == value_type::cons || ty == value_type::closure || ty == value_type::_extern) {
+            auto new_addr = ((uint64_t)(new_next) << 4) | (uint64_t)ty;
+            live_vals[c] = new_addr;
+            memcpy((void*)new_next, (void*)(c >> 4), sizeof(value) * 2);
+            c = new_addr;
+            new_next += 2 * sizeof(value);
+        } else if (ty == value_type::str) {
+			uint32_t* p = (uint32_t*)(c >> 4);
+			uint32_t len = *p;
+			memcpy(new_next, p, len + sizeof(uint32_t));
+			c = (((uint64_t)new_next) << 4) | (uint64_t)value_type::str;
+			live_vals[old_c] = c;
+			new_next += len + sizeof(uint32_t);
+        } else if (ty == value_type::fvec) {
+			uint32_t* p = (uint32_t*)(c >> 4);
+			uint32_t len = *p;
+			memcpy(new_next, p, len*sizeof(float) + sizeof(uint32_t));
+			c = (((uint64_t)new_next) << 4) | (uint64_t)value_type::fvec;
+			live_vals[old_c] = c;
+			new_next += len*sizeof(float) + sizeof(uint32_t);
         }
-        else if (type_of(c) == value_type::str) {
-            uint32_t* p = (uint32_t*)(c >> 4);
-            uint32_t len = *p;
-            memcpy(new_next, p, len+sizeof(uint32_t));
-            c = (((uint64_t)new_next) << 4) | (uint64_t)value_type::str;
-            live_vals[old_c] = c;
-            new_next += len+sizeof(uint32_t);
-        }
-    }
+
+        // recursively process any internal references
+		if (ty == value_type::cons) {
+			gc_process(first(c), live_vals, new_next);
+			gc_process(second(c), live_vals, new_next);
+		}
+		else if (ty == value_type::closure) {
+			function* fn = &functions[*(uint64_t*)(c >> 4) >> 4];
+			gc_process(fn->body, live_vals, new_next);
+			auto old_frv = *((value*)(c >> 4) + 1);
+
+			auto exi_fr = live_vals.find(old_frv);
+			if (exi_fr != live_vals.end()) {
+				*((value*)(c >> 4) + 1) = exi_fr->second;
+				return;
+			}
+
+			auto fr = (frame*)(old_frv >> 4);
+			auto new_fr = (frame*)new_next;
+			new_next += sizeof(frame);
+			memcpy(new_fr, fr, sizeof(frame));
+			auto new_frv =
+				(value)((((uint64_t)new_fr) << 4) | (uint64_t)value_type::_extern);
+			*((value*)(c >> 4) + 1) = new_frv;
+			live_vals[old_frv] = new_frv;
+
+			for (auto& [name, val] : new_fr->data) {
+				if (val == old_c) {
+					val = c;
+					continue;
+				}
+				gc_process(val, live_vals, new_next);
+			}
+		}
+	}
 
     void runtime::collect_garbage(heap_info* res_info) {
         std::map<value, value> live_vals;

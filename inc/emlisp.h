@@ -18,6 +18,7 @@ namespace emlisp {
         float_t = 0x3,
         sym = 0x4,
         str = 0x5,
+        fvec = 0x6,
         _extern = 0xd,
         closure = 0xe,
         cons    = 0xf
@@ -40,7 +41,9 @@ namespace emlisp {
             : std::runtime_error(msg), expected(ex), actual(ac) {}
     };
 
-    inline void check_type(value v, value_type t, const std::string& msg = "type check failed") {
+    inline void check_type(value v, value_type t,
+        const std::string& msg = "type check failed")
+    {
         if (type_of(v) != t)
             throw type_mismatch_error(msg, t, type_of(v));
     }
@@ -52,6 +55,22 @@ namespace emlisp {
     inline value& second(value cell) {
         check_type(cell, value_type::cons);
         return *((value*)(cell >> 4) + 1);
+    }
+
+    inline bool to_bool(value v) {
+        check_type(v, value_type::bool_t);
+        return v != FALSE;
+    }
+
+    inline int64_t to_int(value v) {
+        check_type(v, value_type::int_t);
+        return v >> 4;
+    }
+
+    inline float to_float(value v) {
+        check_type(v, value_type::float_t);
+        uint64_t x = v << 4;
+        return *((float*)&x);
     }
 
     struct function {
@@ -77,12 +96,14 @@ namespace emlisp {
     class runtime {
         std::vector<std::string> symbols;
         std::vector<function> functions;
-        value parse_value(std::string_view src, size_t& i);
+        value parse_value(std::string_view src, size_t& i, bool quasimode = false);
 
         value sym_quote, sym_lambda, sym_if, sym_set,
             sym_cons, sym_car, sym_cdr, sym_eq, sym_define,
             sym_nilp, sym_boolp, sym_intp, sym_floatp, sym_strp,
-            sym_symp, sym_consp, sym_procp;
+            sym_symp, sym_consp, sym_procp,
+            sym_let, sym_letseq, sym_letrec,
+            sym_quasiquote, sym_unquote, sym_unquote_splicing;
 
         std::vector<value> reserved_syms;
 
@@ -120,6 +141,8 @@ namespace emlisp {
         }
 
         value from_str(std::string_view s);
+
+        value from_fvec(uint32_t size, float* v);
 
         value symbol(std::string_view s);
         const std::string& symbol_str(value sym) const;

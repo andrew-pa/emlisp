@@ -4,10 +4,11 @@
 
 // TODO:
 //  + fix floats
-//  - vec2..4
+//  + vec2..4
 //  + garbage collection
 //  + external value handles
 //  + eval tests
+//  / let expressions
 //  ? macros
 //  + standard library
 
@@ -34,8 +35,19 @@ namespace emlisp {
         sym_consp = symbol("cons?");
         sym_procp = symbol("proc?");
 
-        reserved_syms = { sym_quote, sym_lambda, sym_if, sym_set, sym_cons, sym_car, sym_cdr, sym_define,
-                    sym_eq, sym_nilp, sym_boolp, sym_intp, sym_floatp, sym_strp, sym_symp, sym_consp, sym_procp };
+        sym_let = symbol("let");
+        sym_letseq = symbol("let*");
+        sym_letrec = symbol("letrec");
+
+        sym_quasiquote  = symbol("quasiquote");
+        sym_unquote  = symbol("unquote");
+        sym_unquote_splicing  = symbol("unquote-splicing");
+
+        reserved_syms = { sym_quote, sym_quasiquote, sym_lambda, sym_if, sym_set,
+				sym_cons, sym_car, sym_cdr, sym_define,
+				sym_eq, sym_nilp, sym_boolp, sym_intp,
+				sym_floatp, sym_strp, sym_symp, sym_consp, sym_procp,
+				sym_let, sym_letseq, sym_letrec, sym_unquote, sym_unquote_splicing };
 
         scopes.push_back({});
 
@@ -97,6 +109,7 @@ namespace emlisp {
         case value_type::int_t:
         case value_type::float_t:
         case value_type::str:
+        case value_type::fvec:
             result = x;
             break;
 
@@ -134,7 +147,62 @@ namespace emlisp {
             else if (f == sym_symp) result = from_bool(type_of(eval(first(second(x)))) == value_type::sym);
             else if (f == sym_consp) result = from_bool(type_of(eval(first(second(x)))) == value_type::cons);
             else if (f == sym_procp) result = from_bool(type_of(eval(first(second(x)))) == value_type::closure);
-            else if (f == sym_lambda) {
+            else if (f == sym_let) {
+                value bindings = first(second(x));
+                value body = first(second(second(x)));
+                std::map<value, value> scope;
+                value bc = bindings;
+                while (bc != NIL) {
+                    value name = first(first(bc));
+                    value val = first(second(first(bc)));
+                    check_type(name, value_type::sym);
+                    scope[name] = eval(val);
+                    bc = second(bc);
+                }
+                scopes.push_back(scope);
+                result = eval(body);
+                scopes.pop_back();
+            } else if (f == sym_letseq) {
+                value bindings = first(second(x));
+                value body = first(second(second(x)));
+                scopes.push_back({});
+                value bc = bindings;
+                while (bc != NIL) {
+                    value name = first(first(bc));
+                    value val = first(second(first(bc)));
+                    check_type(name, value_type::sym);
+                    scopes[scopes.size()-1][name] = eval(val);
+                    bc = second(bc);
+                }
+                result = eval(body);
+                scopes.pop_back();
+            } else if (f == sym_letrec) {
+                value bindings = first(second(x));
+                value body = first(second(second(x)));
+                std::map<value, value> scope;
+                value bc = bindings;
+                while (bc != NIL) {
+                    value name = first(first(bc));
+                    check_type(name, value_type::sym);
+                    scope[name] = NIL;
+                    bc = second(bc);
+                }
+                scopes.push_back(scope);
+                bc = bindings;
+                while (bc != NIL) {
+                    value name = first(first(bc));
+                    value val = first(second(first(bc)));
+                    check_type(name, value_type::sym);
+                    scope[name] = eval(val);
+                    bc = second(bc);
+                }
+                //TODO: this doesn't really work as intended because closures copy values
+                //      and so when we reset scopes here with the new values, any captured
+                //      values won't get changed in closures and will simply remain NIL
+                scopes[scopes.size() - 1] = scope;
+                result = eval(body);
+                scopes.pop_back();
+            } else if (f == sym_lambda) {
                 value args = first(second(x));
                 value body = first(second(second(x)));
                 // create function
