@@ -80,8 +80,43 @@ namespace emlisp {
                     args = second(args);
                 }
                 compute_closure(first(second(second(v))), new_bound, free);
+            } else if (first(v) == sym_define) {
+                value args = second(first(second(v)));
+                auto new_bound = bound;
+                while (args != NIL) {
+                    new_bound.insert(first(args));
+                    args = second(args);
+                }
+                compute_closure(first(second(second(v))), new_bound, free);
+            }  else if (first(v) == sym_let || first(v) == sym_letseq || first(v) == sym_letrec) {
+				value bindings = first(second(v));
+                auto new_bound = bound;
+                while (bindings != NIL) {
+                    new_bound.insert(first(first(bindings)));
+                    bindings = second(bindings);
+                }
+                compute_closure(first(second(second(v))), new_bound, free);
             } else if (first(v) == sym_quote) {
                 // skip inside of quote
+            } else if (first(v) == sym_quasiquote) {
+                std::vector<value> stack{ first(second(v)) };
+                while (stack.size() > 0) {
+                    value inner = stack.back(); stack.pop_back();
+                    if (type_of(inner) == value_type::cons) {
+                        while (inner != NIL) {
+                            value item = first(inner);
+                            if (type_of(item) == value_type::cons) {
+                                if (first(item) == sym_unquote || first(item) == sym_unquote_splicing) {
+                                    compute_closure(first(second(item)), bound, free);
+                                }
+                                else {
+                                    stack.push_back(item);
+                                }
+                            }
+                            inner = second(inner);
+                        }
+                    }
+                }
             } else {
                 while (v != NIL) {
                     compute_closure(first(v), bound, free);
