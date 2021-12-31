@@ -18,7 +18,7 @@ namespace emlisp {
                 i++;
                 value res = NIL;
                 while(i < src.size() && src[i] != ')') {
-                    value e = parse_value(src, i);
+                    value e = parse_value(src, i, quasimode);
                     res = cons(e, res);
                 }
                 i++;
@@ -36,6 +36,8 @@ namespace emlisp {
                     splicing = true;
                     i++;
                 }
+                return cons(splicing ? sym_unquote_splicing : sym_unquote,
+                    cons(parse_value(src, i)));
             } else if (src[i] == '"') {
                 i++;
                 std::string s;

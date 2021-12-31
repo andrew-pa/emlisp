@@ -26,7 +26,7 @@ int main(int argc, char* argv[]) {
 		try {
 			std::cout << "> ";
 			std::getline(std::cin, line);
-			auto v = rt.read(line);
+			auto v = rt.expand(rt.read(line));
 			std::cout << " -> ";
 			rt.write(std::cout, v);
 			std::cout << "\n";

@@ -103,14 +103,17 @@ namespace emlisp {
             sym_nilp, sym_boolp, sym_intp, sym_floatp, sym_strp,
             sym_symp, sym_consp, sym_procp,
             sym_let, sym_letseq, sym_letrec,
-            sym_quasiquote, sym_unquote, sym_unquote_splicing;
+            sym_quasiquote, sym_unquote, sym_unquote_splicing,
+            sym_defmacro;
 
         std::vector<value> reserved_syms;
 
+        std::map<value, size_t> macros;
         std::vector<std::map<value, value>> scopes;
         value look_up(value name);
 
         void compute_closure(value v, const std::set<value>& bound, std::set<value>& free);
+        value apply_quasiquote(value s);
         
         uint8_t* heap;
         uint8_t* heap_next;
@@ -154,6 +157,8 @@ namespace emlisp {
         void write(std::ostream&, value);
 
         value eval(value x);
+
+        value expand(value x);
 
         void define_fn(std::string_view name, extern_func_t fn, void* data);
 

@@ -21,6 +21,7 @@ namespace emlisp {
         sym_if = symbol("if");
         sym_set = symbol("set!");
         sym_define = symbol("define");
+        sym_defmacro = symbol("defmacro");
         sym_cons = symbol("cons");
         sym_car = symbol("car");
         sym_cdr = symbol("cdr");
@@ -47,7 +48,7 @@ namespace emlisp {
 				sym_cons, sym_car, sym_cdr, sym_define,
 				sym_eq, sym_nilp, sym_boolp, sym_intp,
 				sym_floatp, sym_strp, sym_symp, sym_consp, sym_procp,
-				sym_let, sym_letseq, sym_letrec, sym_unquote, sym_unquote_splicing };
+				sym_let, sym_letseq, sym_letrec, sym_unquote, sym_unquote_splicing, sym_defmacro };
 
         scopes.push_back({});
 
@@ -99,6 +100,27 @@ namespace emlisp {
 			}
 		}
 		throw std::runtime_error("unknown name " + symbol_str(name));
+    }
+
+    value runtime::apply_quasiquote(value s) {
+        if (type_of(s) != value_type::cons) {
+            return s;
+        } else if (first(s) == sym_unquote) {
+            return eval(first(second(s)));
+        } else {
+            if (type_of(first(s)) == value_type::cons
+                    && first(first(s)) == sym_unquote_splicing)
+            {
+                value list = eval(first(second(first(s))));
+                if (list == NIL) return apply_quasiquote(second(s));
+                check_type(list, value_type::cons);
+                value end = list;
+                while (second(end) != NIL) end = second(end);
+                second(end) = apply_quasiquote(second(s));
+                return list;
+            }
+            return cons(apply_quasiquote(first(s)), apply_quasiquote(second(s)));
+        }
     }
 
     value runtime::eval(value x) {
@@ -275,8 +297,9 @@ namespace emlisp {
                 else {
                     throw std::runtime_error("invalid define");
                 }
-            } 
-            else {
+            } else if (f == sym_quasiquote) {
+                result = apply_quasiquote(first(second(x)));
+            } else {
                 auto fv = eval(f);
                 if (type_of(fv) == value_type::_extern) {
 					extern_func_t fn = (extern_func_t)(*(uint64_t*)(fv >> 4) >> 4);
@@ -319,4 +342,36 @@ namespace emlisp {
             ((uint64_t)data << 4) | (uint64_t)value_type::_extern
         ) - 2;
     }
+
+    value runtime::expand(value v) {
+        if (type_of(v) != value_type::cons) return v;
+        if (first(v) == sym_defmacro) {
+            value head = first(second(v));
+            value body = first(second(second(v)));
+			uint64_t fn = functions.size();
+			functions.emplace_back(second(head), body);
+            macros[first(head)] = fn;
+            return NIL;
+        }
+        if (type_of(first(v)) == value_type::sym) {
+            auto mc = macros.find(first(v));
+            if (mc != macros.end()) {
+                auto fn = &functions[mc->second];
+                std::map<value, value> arguments;
+                value a = second(v);
+                size_t i = 0;
+                while (a != NIL) {
+                    arguments[fn->arguments[i++]] = first(a);
+                    a = second(a);
+                }
+                scopes.push_back(arguments);
+                auto res = eval(fn->body);
+                scopes.pop_back();
+                return expand(res);
+            }
+        }
+		first(v) = expand(first(v));
+		second(v) = expand(second(v));
+		return v;
+	}
 }
