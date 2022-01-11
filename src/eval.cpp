@@ -9,7 +9,7 @@
 //  + external value handles
 //  + eval tests
 //  / let expressions
-//  ? macros
+//  + macros
 //  + standard library
 
 namespace emlisp {
@@ -40,13 +40,17 @@ namespace emlisp {
         sym_letseq = symbol("let*");
         sym_letrec = symbol("letrec");
 
+        sym_unique_sym = symbol("unique-symbol");
+
         sym_quasiquote  = symbol("quasiquote");
         sym_unquote  = symbol("unquote");
         sym_unquote_splicing  = symbol("unquote-splicing");
 
+        sym_ellipsis = symbol("...");
+
         reserved_syms = { sym_quote, sym_quasiquote, sym_lambda, sym_if, sym_set,
 				sym_cons, sym_car, sym_cdr, sym_define,
-				sym_eq, sym_nilp, sym_boolp, sym_intp,
+				sym_eq, sym_nilp, sym_boolp, sym_intp, sym_ellipsis,
 				sym_floatp, sym_strp, sym_symp, sym_consp, sym_procp,
 				sym_let, sym_letseq, sym_letrec, sym_unquote, sym_unquote_splicing, sym_defmacro };
 
@@ -57,12 +61,17 @@ namespace emlisp {
         heap_next = heap;
     }
 
-    function::function(value arg_list, value body)
-        : body(body)
+    function::function(value arg_list, value body, value sym_ellipsis)
+        : body(body), varadic(false)
     {
-        while (arg_list != NIL) {
-            arguments.push_back(first(arg_list));
-            arg_list = second(arg_list);
+        if (first(arg_list) == sym_ellipsis) {
+            varadic = true;
+            arguments.push_back(first(second(arg_list)));
+        } else {
+            while (arg_list != NIL) {
+                arguments.push_back(first(arg_list));
+                arg_list = second(arg_list);
+            }
         }
     }
 
@@ -73,6 +82,7 @@ namespace emlisp {
                 free.insert(v);
         } else if (ty == value_type::cons) {
             if (first(v) == sym_lambda) {
+                // TODO: deal with varadic functions
                 value args = first(second(v));
                 auto new_bound = bound;
                 while (args != NIL) {
@@ -81,6 +91,7 @@ namespace emlisp {
                 }
                 compute_closure(first(second(second(v))), new_bound, free);
             } else if (first(v) == sym_define) {
+                // TODO: deal with varadic functions
                 value args = second(first(second(v)));
                 auto new_bound = bound;
                 while (args != NIL) {
@@ -204,6 +215,13 @@ namespace emlisp {
             else if (f == sym_symp) result = from_bool(type_of(eval(first(second(x)))) == value_type::sym);
             else if (f == sym_consp) result = from_bool(type_of(eval(first(second(x)))) == value_type::cons);
             else if (f == sym_procp) result = from_bool(type_of(eval(first(second(x)))) == value_type::closure);
+            else if (f == sym_unique_sym) {
+				value name = first(second(x));
+				check_type(name, value_type::sym);
+				value sym = (uint64_t)(symbols.size() << 4) | (uint64_t)value_type::sym;
+				symbols.push_back(symbols[name >> 4]);
+				return sym;
+			}
             else if (f == sym_let) {
                 value bindings = first(second(x));
                 value body = first(second(second(x)));
@@ -264,7 +282,8 @@ namespace emlisp {
                 value body = first(second(second(x)));
                 // create function
                 uint64_t fn = functions.size();
-                functions.emplace_back(args, body);
+                functions.emplace_back(args, body, sym_ellipsis);
+                // TODO: deal with varadic functions
                 frame* clo = alloc_frame();
                 std::set<value> bound(functions[fn].arguments.begin(), functions[fn].arguments.end()),
                     free;
@@ -280,9 +299,9 @@ namespace emlisp {
                 result = closure;
             } else if (f == sym_if) {
                 value cond = eval(first(second(x)));
-                if (cond == TRUE) {
+                if (cond != FALSE) {
                     result = eval(first(second(second(x))));
-                } else if (cond == FALSE) {
+                } else {
                     result = eval(first(second(second(second(x)))));
                 }
             } else if (f == sym_set) {
@@ -311,7 +330,8 @@ namespace emlisp {
 					value body = first(second(second(x)));
 					// create function
 					uint64_t fn = functions.size();
-					functions.emplace_back(args, body);
+					functions.emplace_back(args, body, sym_ellipsis);
+                    // TODO: deal with varadic functions
 					frame* clo = alloc_frame();
 					std::set<value> bound(functions[fn].arguments.begin(), functions[fn].arguments.end()),
 						free;
@@ -384,20 +404,25 @@ namespace emlisp {
             value head = first(second(v));
             value body = first(second(second(v)));
 			uint64_t fn = functions.size();
-			functions.emplace_back(second(head), body);
+			functions.emplace_back(second(head), body, sym_ellipsis);
             macros[first(head)] = fn;
             return NIL;
         }
+        
         if (type_of(first(v)) == value_type::sym) {
             auto mc = macros.find(first(v));
             if (mc != macros.end()) {
                 auto fn = &functions[mc->second];
                 std::map<value, value> arguments;
-                value a = second(v);
-                size_t i = 0;
-                while (a != NIL) {
-                    arguments[fn->arguments[i++]] = first(a);
-                    a = second(a);
+                if (fn->varadic) {
+                    arguments[fn->arguments[0]] = second(v);
+                } else {
+                    value a = second(v);
+                    size_t i = 0;
+                    while (a != NIL) {
+                        arguments[fn->arguments[i++]] = first(a);
+                        a = second(a);
+                    }
                 }
                 scopes.push_back(arguments);
                 auto res = eval(fn->body);

@@ -166,13 +166,21 @@ namespace emlisp {
             }
             os << ")";
         } break;
-		case value_type::cons:
-			os << "(";
-			write(os, first(v));
-			os << " . ";
-			write(os, second(v));
-			os << ")";
-			break;
+        case value_type::cons: {
+            os << "(";
+            write(os, first(v));
+            value cur = second(v);
+            while (type_of(cur) == value_type::cons) {
+                os << " ";
+                write(os, first(cur));
+                cur = second(cur);
+            }
+            if (cur != NIL) {
+                os << " . ";
+                write(os, second(v));
+            }
+            os << ")";
+        } break;
 		case value_type::closure:
 			os << "#closure" << "<" << std::hex << v << std::dec << ">";
 			break;

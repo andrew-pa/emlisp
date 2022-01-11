@@ -76,8 +76,8 @@ namespace emlisp {
     struct function {
         std::vector<value> arguments;
         value body;
-        
-        function(value arg_list, value body);
+        bool varadic;
+        function(value arg_list, value body, value sym_ellipsis);
     };
 
     struct frame {
@@ -104,7 +104,8 @@ namespace emlisp {
             sym_symp, sym_consp, sym_procp,
             sym_let, sym_letseq, sym_letrec,
             sym_quasiquote, sym_unquote, sym_unquote_splicing,
-            sym_defmacro;
+            sym_defmacro, sym_ellipsis,
+            sym_unique_sym;
 
         std::vector<value> reserved_syms;
 
@@ -163,6 +164,10 @@ namespace emlisp {
         void define_fn(std::string_view name, extern_func_t fn, void* data);
 
         void collect_garbage(heap_info* res_info = nullptr);
+
+        inline size_t current_heap_size() const {
+            return heap_next - heap;
+        }
 
         friend class value_handle;
 
