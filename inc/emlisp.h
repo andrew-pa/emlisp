@@ -83,6 +83,9 @@ namespace emlisp {
     struct frame {
         std::map<value, value> data;
 
+        frame() = default;
+        frame(std::map<value, value>& data) : data(std::move(data)) {}
+
         value get(value name);
 		void set(value name, value val);
 	};
@@ -172,8 +175,8 @@ namespace emlisp {
         }
 
         friend class value_handle;
+        class value_handle handle_for(value v);
 
-        value_handle handle_for(value v);
 
         void serialize(value v);
         value deserialize(uint8_t* data, size_t length);

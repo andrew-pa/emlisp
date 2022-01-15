@@ -1,12 +1,14 @@
 #include "emlisp.h"
 #include <iostream>
+#include <cstring>
+#include <algorithm>
 
 namespace emlisp {
     value runtime::cons(value fst, value snd) {
         if (heap_next - heap > heap_size) {
             throw std::runtime_error("out of memory");
         }
-        value* addr = (value*)heap_next;
+        auto* addr = (value*)heap_next;
         addr[0] = fst;
         addr[1] = snd;
         heap_next += 2*sizeof(value);
@@ -17,7 +19,7 @@ namespace emlisp {
         if (heap_next - heap > heap_size) {
             throw std::runtime_error("out of memory");
         }
-        frame* f = (frame*)heap_next;
+        auto* f = (frame*)heap_next;
         heap_next += sizeof(frame);
         new(f) frame();
         return f;
@@ -38,7 +40,7 @@ namespace emlisp {
 		if (heap_next - heap > heap_size) {
 			throw std::runtime_error("out of memory");
 		}
-		uint32_t* v = (uint32_t*)heap_next;
+		auto* v = (uint32_t*)heap_next;
 		heap_next += size*sizeof(float) + sizeof(uint32_t);
         memcpy(v + 1, src_v, sizeof(float) * size);
         *v = size;
@@ -78,18 +80,18 @@ namespace emlisp {
         auto ty = type_of(c);
         // only proceed if the value is on the heap
         if (!(ty == value_type::cons
-            || ty == value_type::closure
-            || ty == value_type::_extern
-            || ty == value_type::str
-            || ty == value_type::fvec)) return;
+                    || ty == value_type::closure
+                    || ty == value_type::_extern
+                    || ty == value_type::str
+                    || ty == value_type::fvec)) return;
 
         auto old_c = c;
         // check to see if we've already processed this value
-		auto existing_copy = live_vals.find(c);
-		if (existing_copy != live_vals.end()) {
-			c = existing_copy->second;
-			return;
-		}
+        auto existing_copy = live_vals.find(c);
+        if (existing_copy != live_vals.end()) {
+            c = existing_copy->second;
+            return;
+        }
 
         // copy the value itself
         if (ty == value_type::cons || ty == value_type::closure || ty == value_type::_extern) {
@@ -99,62 +101,63 @@ namespace emlisp {
             c = new_addr;
             new_next += 2 * sizeof(value);
         } else if (ty == value_type::str) {
-			uint32_t* p = (uint32_t*)(c >> 4);
-			uint32_t len = *p;
-			memcpy(new_next, p, len + sizeof(uint32_t));
-			c = (((uint64_t)new_next) << 4) | (uint64_t)value_type::str;
-			live_vals[old_c] = c;
-			new_next += len + sizeof(uint32_t);
+            uint32_t* p = (uint32_t*)(c >> 4);
+            uint32_t len = *p;
+            memcpy(new_next, p, len + sizeof(uint32_t));
+            c = (((uint64_t)new_next) << 4) | (uint64_t)value_type::str;
+            live_vals[old_c] = c;
+            new_next += len + sizeof(uint32_t);
         } else if (ty == value_type::fvec) {
-			uint32_t* p = (uint32_t*)(c >> 4);
-			uint32_t len = *p;
-			memcpy(new_next, p, len*sizeof(float) + sizeof(uint32_t));
-			c = (((uint64_t)new_next) << 4) | (uint64_t)value_type::fvec;
-			live_vals[old_c] = c;
-			new_next += len*sizeof(float) + sizeof(uint32_t);
+            uint32_t* p = (uint32_t*)(c >> 4);
+            uint32_t len = *p;
+            memcpy(new_next, p, len*sizeof(float) + sizeof(uint32_t));
+            c = (((uint64_t)new_next) << 4) | (uint64_t)value_type::fvec;
+            live_vals[old_c] = c;
+            new_next += len*sizeof(float) + sizeof(uint32_t);
         }
 
         // recursively process any internal references
-		if (ty == value_type::cons) {
-			gc_process(first(c), live_vals, new_next);
-			gc_process(second(c), live_vals, new_next);
-		}
-		else if (ty == value_type::closure) {
-			function* fn = &functions[*(uint64_t*)(c >> 4) >> 4];
-			gc_process(fn->body, live_vals, new_next);
-			auto old_frv = *((value*)(c >> 4) + 1);
+        if (ty == value_type::cons) {
+            gc_process(first(c), live_vals, new_next);
+            gc_process(second(c), live_vals, new_next);
+        }
+        else if (ty == value_type::closure) {
+            function* fn = &functions[*(uint64_t*)(c >> 4) >> 4];
+            gc_process(fn->body, live_vals, new_next);
+            auto old_frv = *((value*)(c >> 4) + 1);
 
-			auto exi_fr = live_vals.find(old_frv);
-			if (exi_fr != live_vals.end()) {
-				*((value*)(c >> 4) + 1) = exi_fr->second;
-				return;
-			}
+            auto exi_fr = live_vals.find(old_frv);
+            if (exi_fr != live_vals.end()) {
+                *((value*)(c >> 4) + 1) = exi_fr->second;
+                return;
+            }
 
-			auto fr = (frame*)(old_frv >> 4);
-			auto new_fr = (frame*)new_next;
-			new_next += sizeof(frame);
-			memcpy(new_fr, fr, sizeof(frame));
-			auto new_frv =
-				(value)((((uint64_t)new_fr) << 4) | (uint64_t)value_type::_extern);
-			*((value*)(c >> 4) + 1) = new_frv;
-			live_vals[old_frv] = new_frv;
+            auto fr = (frame*)(old_frv >> 4);
+            auto* new_fr = (frame*)new_next;
+            new_next += sizeof(frame);
+            new (new_fr) frame(fr->data);
+            //memcpy(new_fr, fr, sizeof(frame));
+            auto new_frv =
+                (value)((((uint64_t)new_fr) << 4) | (uint64_t)value_type::_extern);
+            *((value*)(c >> 4) + 1) = new_frv;
+            live_vals[old_frv] = new_frv;
 
-			for (auto& [name, val] : new_fr->data) {
-				if (val == old_c) {
-					val = c;
-					continue;
-				}
-				gc_process(val, live_vals, new_next);
-			}
-		}
-	}
+            for (auto& [name, val] : new_fr->data) {
+                if (val == old_c) {
+                    val = c;
+                    continue;
+                }
+                gc_process(val, live_vals, new_next);
+            }
+        }
+    }
 
     void runtime::collect_garbage(heap_info* res_info) {
         std::map<value, value> live_vals;
 
         auto* new_heap = new uint8_t[heap_size];
         assert(new_heap != nullptr);
-        auto new_heap_next = new_heap;
+        auto* new_heap_next = new_heap;
 
         for (auto& sc : scopes) {
             for (auto& [name, val] : sc) {
@@ -184,7 +187,7 @@ namespace emlisp {
     value_handle runtime::handle_for(value v) {
         auto h = next_extern_value_handle++;
         extern_values[h] = { v, 1 };
-        return value_handle(this, h);
+        return { this, h };
     }
 
     value_handle::value_handle(const value_handle& other)
