@@ -128,6 +128,8 @@ namespace emlisp {
 
         std::map<uint64_t, std::pair<value, uint64_t>> extern_values;
         uint64_t next_extern_value_handle;
+
+        void ser_value(value, std::vector<uint64_t>, std::vector<uint8_t>);
     public:
         runtime(size_t heap_size = 1024*1024);
 
@@ -172,6 +174,9 @@ namespace emlisp {
         friend class value_handle;
 
         value_handle handle_for(value v);
+
+        void serialize(value v);
+        value deserialize(uint8_t* data, size_t length);
     };
 
     // must live as long as the runtime from which it was obtained
