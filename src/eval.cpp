@@ -64,7 +64,7 @@ namespace emlisp {
     function::function(value arg_list, value body, value sym_ellipsis)
         : body(body), varadic(false)
     {
-        if (first(arg_list) == sym_ellipsis) {
+        if (arg_list != NIL && first(arg_list) == sym_ellipsis) {
             varadic = true;
             arguments.push_back(first(second(arg_list)));
         } else {

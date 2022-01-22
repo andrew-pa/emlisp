@@ -53,7 +53,7 @@ int main(int argc, char* argv[]) {
         return emlisp::NIL;
 	}, nullptr);
 
-    auto src_vals = rt.handle_for(rt.read_all(source));
+    auto src_vals = rt.handle_for(rt.expand(rt.read_all(source)));
 
     auto cur = src_vals;
     while(*cur != emlisp::NIL) {
@@ -68,6 +68,7 @@ int main(int argc, char* argv[]) {
 			rt.write(std::cout, *src_vals);
 			std::cout << "\n---\n";
 			cur = rt.handle_for(emlisp::second(*cur));
+            std::cout.flush();
 		}
 		catch (std::runtime_error e) {
 			std::cout << "error: " << e.what() << "\n";

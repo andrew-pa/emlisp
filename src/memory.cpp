@@ -161,12 +161,16 @@ namespace emlisp {
 
         for (auto& sc : scopes) {
             for (auto& [name, val] : sc) {
-				gc_process(val, live_vals, new_heap_next);
+                gc_process(val, live_vals, new_heap_next);
             }
         }
 
         for (auto& p : extern_values) {
             gc_process(p.second.first, live_vals, new_heap_next);
+        }
+
+        for(auto& fn : functions) {
+            gc_process(fn.body, live_vals, new_heap_next);
         }
 
         if (res_info != nullptr) {

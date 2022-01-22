@@ -89,34 +89,34 @@ namespace emlisp {
                     i++;
                     if (src[i++] != '(') throw std::runtime_error("unknown #v");
                     std::vector<float> vals;
-					while (i < src.size() && src[i] != ')') {
+                    while (i < src.size() && src[i] != ')') {
                         if (std::isspace(src[i]) != 0) {
                             i++; continue;
                         }
-						size_t start = i;
-						if (src[i] == '-') i++;
-						while (i < src.size() && (std::isdigit(src[i]) != 0 || src[i] == '.')) {
-							i++;
-						}
-						auto v = (float)std::atof(src.data() + start);
+                        size_t start = i;
+                        if (src[i] == '-') i++;
+                        while (i < src.size() && (std::isdigit(src[i]) != 0 || src[i] == '.')) {
+                            i++;
+                        }
+                        auto v = (float)std::atof(src.data() + start);
                         vals.push_back(v);
-					}
-					i++;
-					return this->from_fvec(vals.size(), vals.data());
-				}
-				throw std::runtime_error("unknown #");
-			}
-			else if (src[i] == ';') {
-				while (i < src.size() && src[i] != '\n') i++;
-			}
-			else {
-				size_t start = i;
-				while (i < src.size() && (std::isspace(src[i]) == 0) && src[i] != '(' && src[i] != ')') i++;
-				return this->symbol(src.substr(start, i - start));
-			}
-		}
-		return NIL;
-	}
+                    }
+                    i++;
+                    return this->from_fvec(vals.size(), vals.data());
+                }
+                throw std::runtime_error("unknown #");
+            }
+            else if (src[i] == ';') {
+                while (i < src.size() && src[i] != '\n') i++;
+            }
+            else {
+                size_t start = i;
+                while (i < src.size() && (std::isspace(src[i]) == 0) && src[i] != '(' && src[i] != ')') i++;
+                return this->symbol(src.substr(start, i - start));
+            }
+        }
+        return NIL;
+    }
 
     value runtime::read(std::string_view src) {
         size_t i = 0;
