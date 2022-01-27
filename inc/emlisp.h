@@ -37,8 +37,10 @@ namespace emlisp {
     struct type_mismatch_error : public std::runtime_error {
         value_type expected;
         value_type actual;
+        value trace;
         type_mismatch_error(const std::string& msg, value_type ex, value_type ac)
-            : std::runtime_error(msg), expected(ex), actual(ac) {}
+            : std::runtime_error(msg), expected(ex), actual(ac), trace(NIL) {}
+        type_mismatch_error(const type_mismatch_error& e, class runtime*, value responsible);
     };
 
     inline void check_type(value v, value_type t,
@@ -108,7 +110,7 @@ namespace emlisp {
             sym_let, sym_letseq, sym_letrec,
             sym_quasiquote, sym_unquote, sym_unquote_splicing,
             sym_defmacro, sym_ellipsis,
-            sym_unique_sym;
+            sym_unique_sym, sym_macro_error;
 
         std::vector<value> reserved_syms;
 
@@ -116,6 +118,7 @@ namespace emlisp {
         std::vector<std::map<value, value>> scopes;
         value look_up(value name);
 
+        value apply(value x);
         void compute_closure(value v, const std::set<value>& bound, std::set<value>& free);
         value apply_quasiquote(value s);
         
@@ -150,6 +153,7 @@ namespace emlisp {
         }
 
         value from_str(std::string_view s);
+        std::string_view to_str(value v);
 
         value from_fvec(uint32_t size, float* v);
 

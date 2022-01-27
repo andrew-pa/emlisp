@@ -37,6 +37,16 @@ int main(int argc, char* argv[]) {
 			std::cout << "\n";
 		} catch (emlisp::type_mismatch_error te) {
 			std::cout << "type error: expected " << te.expected << ", found " << te.actual << ": " << te.what() << "\n";
+            if(te.trace != emlisp::NIL) {
+                std::cout << "context:\n";
+                auto resp = te.trace;
+                while(resp != emlisp::NIL) {
+                    std::cout << "\t";
+                    rt.write(std::cout, emlisp::first(resp));
+                    std::cout << "\n";
+                    resp = emlisp::second(resp);
+                }
+            }
 		} catch (std::runtime_error e) {
 			std::cout << "error: " << e.what() << "\n";
 		}

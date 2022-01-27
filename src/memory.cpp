@@ -36,6 +36,13 @@ namespace emlisp {
         return (((uint64_t)str) << 4) | (uint64_t)value_type::str;
     }
 
+    std::string_view runtime::to_str(value v) {
+        check_type(v, value_type::str, "get string from value");
+        auto length = *(uint32_t*)(v >> 4);
+        auto data   = (char*)((v >> 4) + sizeof(uint32_t));
+        return {data, length};
+    }
+
     value runtime::from_fvec(uint32_t size, float* src_v) {
 		if (heap_next - heap > heap_size) {
 			throw std::runtime_error("out of memory");

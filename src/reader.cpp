@@ -15,10 +15,11 @@ namespace emlisp {
         for(; i < src.size(); ++i) {
             if(std::isspace(src[i]) != 0) continue;
 
-            if(src[i] == '(') {
+            if(src[i] == '(' || src[i] == '[') {
+                char end = src[i] == '[' ? ']' : ')';
                 i++;
                 value res = NIL;
-                while(i < src.size() && src[i] != ')') {
+                while(i < src.size() && src[i] != end) {
                     value e = parse_value(src, i, quasimode);
                     res = cons(e, res);
                 }
@@ -153,9 +154,7 @@ namespace emlisp {
 			os << this->symbols[v >> 4];
 			break;
         case value_type::str: {
-            std::string_view str((char*)((v >> 4) + sizeof(uint32_t)),
-                *(uint32_t*)(v >> 4));
-            os << '"' << str << '"';
+            os << '"' << to_str(v) << '"';
         } break;
         case value_type::fvec: {
             auto len = *((uint32_t*)(v >> 4));
