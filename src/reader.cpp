@@ -1,5 +1,6 @@
 #include "emlisp.h"
 #include <iostream>
+#include <cstring>
 
 namespace emlisp {
     value reverse_list(value head) {
@@ -197,50 +198,5 @@ namespace emlisp {
             "closure", "cons"
         };
         return os << (names[(size_t)vt]);
-    }
-
-    void deser_value(value& v, uint8_t* root, const std::map<value, value>& sym_translation) {
-        auto t = type_of(v);
-        if (t == value_type::cons || t == value_type::str || t == value_type::fvec) {
-            v += ((uint64_t)root) << 4;
-            if (t == value_type::cons) {
-                deser_value(first(v), root, sym_translation);
-                deser_value(second(v), root, sym_translation);
-            }
-        }
-        else if (t == value_type::sym) {
-            v = sym_translation.at(v);
-        }
-    }
-
-    value runtime::deserialize(uint8_t* data, size_t length) {
-        uint64_t symbols_length = *((uint64_t*)data) + sizeof(uint64_t);
-        data += symbols_length;
-        uint8_t* dest = heap_next;
-        memcpy(dest, data, length - symbols_length);
-        heap_next += (length - symbols_length);
-        std::map<value, value> sym_translation;
-        uint64_t i = sizeof(uint64_t);
-        while (i < symbols_length) {
-            uint32_t* h = (uint32_t*)(data + i);
-            uint32_t blob_sym = h[0];
-            uint32_t sym_str_len = h[1];
-            i += 2 * sizeof(uint32_t) + sym_str_len;
-            sym_translation.emplace(blob_sym,
-                symbol(std::string_view(
-                    (const char* const)(data + i + 2 * sizeof(uint32_t)),
-                    sym_str_len)));
-        }
-        deser_value(*((value*)dest), dest, sym_translation);
-    }
-
-    void runtime::ser_value(value v, std::vector<uint64_t>& data, std::vector<uint8_t>& symbols) {
-
-    }
-
-    std::vector<uint64_t> runtime::serialize(value v) {
-        std::vector<uint64_t> data;
-        std::vector<uint8_t> symbols;
-        ser_value(v, data, symbols);
     }
 }
