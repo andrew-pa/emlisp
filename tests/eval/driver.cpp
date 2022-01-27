@@ -19,7 +19,7 @@ std::string get_file_contents(const char* filename) {
 int main(int argc, char* argv[]) {
     auto source = get_file_contents(argv[1]);
 
-    emlisp::runtime rt;
+    emlisp::runtime rt(1024*1024, false);
 
     rt.define_fn("assert!", [](emlisp::runtime* rt, emlisp::value args, void* d) {
         if (emlisp::first(args) != emlisp::TRUE) {

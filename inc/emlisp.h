@@ -134,7 +134,7 @@ namespace emlisp {
 
         void ser_value(std::ostream&, std::set<value>&, value);
     public:
-        runtime(size_t heap_size = 1024*1024);
+        runtime(size_t heap_size = 1024*1024, bool load_std_lib = true);
 
         inline value from_bool(bool b) {
             return b ? 0x11 : 0x01;
@@ -193,4 +193,6 @@ namespace emlisp {
         operator value();
         ~value_handle();
     };
+
+    extern const char* EMLISP_STD_SRC;
 }

@@ -13,7 +13,7 @@
 //  + standard library
 
 namespace emlisp {
-    runtime::runtime(size_t heap_size)
+    runtime::runtime(size_t heap_size, bool load_std_lib)
         : heap_size(heap_size), next_extern_value_handle(1)
     {
         sym_quote  = symbol("quote");
@@ -54,11 +54,19 @@ namespace emlisp {
 				sym_floatp, sym_strp, sym_symp, sym_consp, sym_procp,
 				sym_let, sym_letseq, sym_letrec, sym_unquote, sym_unquote_splicing, sym_defmacro };
 
-        scopes.push_back({});
+        scopes.emplace_back();
 
         heap = new uint8_t[heap_size];
         assert(heap != nullptr);
         heap_next = heap;
+
+        if(load_std_lib) {
+            value code = expand(read_all(EMLISP_STD_SRC));
+            while(code != NIL) {
+                eval(first(code));
+                code = second(code);
+            }
+        }
     }
 
     function::function(value arg_list, value body, value sym_ellipsis)

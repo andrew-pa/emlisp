@@ -4,7 +4,15 @@ project(emlisp VERSION 1.0 LANGUAGES CXX)
 
 include_directories(inc/)
 
-add_library(emlisp inc/emlisp.h src/memory.cpp src/reader.cpp src/eval.cpp)
+add_executable(emlisp_src_embed_gen src/src_embed_gen.cpp)
+
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lisp_std.cpp
+    COMMAND emlisp_src_embed_gen ${CMAKE_CURRENT_BINARY_DIR}/lisp_std.cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/lisp_std_template.cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/std.lisp
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/lisp_std_template.cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/std.lisp
+)
+
+add_library(emlisp inc/emlisp.h src/memory.cpp src/reader.cpp src/eval.cpp lisp_std.cpp)
 target_compile_features(emlisp PUBLIC cxx_std_17)
 export(TARGETS emlisp FILE EmlispTargets.cmake)
 
