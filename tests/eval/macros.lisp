@@ -17,7 +17,7 @@
 (defmacro (or ... values)
   (if (nil? values) #f
     (if (nil? (cdr values)) (car values)
-      (let ([X (unique-symbol "x")])
+      (let ([X (unique-symbol x)])
         `(let ([,X ,(car values)]) (if ,X ,X (or ,@(cdr values))))))))
 
 (defmacro (and ... values) (if (nil? values) #t (if (nil? (cdr values)) (car values) `(if ,(car values) (and ,@(cdr values)) #f) )))

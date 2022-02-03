@@ -100,6 +100,12 @@ namespace emlisp {
             return;
         }
 
+#ifdef GC_LOG
+        std::cout << "collecting ";
+        this->write(std::cout, c);
+        std::cout << " @ " << std::hex << c << std::dec << "\n";
+#endif
+
         // copy the value itself
         if (ty == value_type::cons || ty == value_type::closure || ty == value_type::_extern) {
             auto new_addr = ((uint64_t)(new_next) << 4) | (uint64_t)ty;
@@ -107,6 +113,14 @@ namespace emlisp {
             memcpy((void*)new_next, (void*)(c >> 4), sizeof(value) * 2);
             c = new_addr;
             new_next += 2 * sizeof(value);
+            if(new_next > gc_copy_limit) {
+#ifdef GC_LOG
+                std::cout << "!!! copying cons/closure/extern value " << ty << " " << std::hex << c << std::dec << "\n\t";
+                this->write(std::cout, c);
+                std::cout << "\n";
+#endif
+                throw std::runtime_error("garbage collector has allocated more than the previous heap");
+            }
         } else if (ty == value_type::str) {
             uint32_t* p = (uint32_t*)(c >> 4);
             uint32_t len = *p;
@@ -114,6 +128,12 @@ namespace emlisp {
             c = (((uint64_t)new_next) << 4) | (uint64_t)value_type::str;
             live_vals[old_c] = c;
             new_next += len + sizeof(uint32_t);
+            if(new_next > gc_copy_limit) {
+#ifdef GC_LOG
+                std::cout << "!!! copying string\n";
+#endif
+                throw std::runtime_error("garbage collector has allocated more than the previous heap");
+            }
         } else if (ty == value_type::fvec) {
             uint32_t* p = (uint32_t*)(c >> 4);
             uint32_t len = *p;
@@ -121,6 +141,12 @@ namespace emlisp {
             c = (((uint64_t)new_next) << 4) | (uint64_t)value_type::fvec;
             live_vals[old_c] = c;
             new_next += len*sizeof(float) + sizeof(uint32_t);
+            if(new_next > gc_copy_limit) {
+#ifdef GC_LOG
+                std::cout << "!!! copying fvec\n";
+#endif
+                throw std::runtime_error("garbage collector has allocated more than the previous heap");
+            }
         }
 
         // recursively process any internal references
@@ -135,6 +161,9 @@ namespace emlisp {
 
             auto exi_fr = live_vals.find(old_frv);
             if (exi_fr != live_vals.end()) {
+#ifdef GC_LOG
+                std::cout << "\tframe already collected\n";
+#endif
                 *((value*)(c >> 4) + 1) = exi_fr->second;
                 return;
             }
@@ -142,6 +171,12 @@ namespace emlisp {
             auto fr = (frame*)(old_frv >> 4);
             auto* new_fr = (frame*)new_next;
             new_next += sizeof(frame);
+            if(new_next > gc_copy_limit) {
+#ifdef GC_LOG
+                std::cout << "!!! copying frame\n";
+#endif
+                throw std::runtime_error("garbage collector has allocated more than the previous heap");
+            }
             new (new_fr) frame(fr->data);
             //memcpy(new_fr, fr, sizeof(frame));
             auto new_frv =
@@ -150,10 +185,15 @@ namespace emlisp {
             live_vals[old_frv] = new_frv;
 
             for (auto& [name, val] : new_fr->data) {
-                if (val == old_c) {
+                if (val == old_c) { // this is sus?
                     val = c;
                     continue;
                 }
+#ifdef GC_LOG
+                std::cout << "\tcollecting frame value " << symbols[name>>4] << " → ";
+                this->write(std::cout, val);
+                std::cout << "\n";
+#endif
                 gc_process(val, live_vals, new_next);
             }
         }
@@ -165,6 +205,7 @@ namespace emlisp {
         auto* new_heap = new uint8_t[heap_size];
         assert(new_heap != nullptr);
         auto* new_heap_next = new_heap;
+        gc_copy_limit = new_heap + (heap_next - heap); // GC shouldn't increase heap size!
 
         for (auto& sc : scopes) {
             for (auto& [name, val] : sc) {
@@ -174,10 +215,6 @@ namespace emlisp {
 
         for (auto& p : extern_values) {
             gc_process(p.second.first, live_vals, new_heap_next);
-        }
-
-        for(auto& fn : functions) {
-            gc_process(fn.body, live_vals, new_heap_next);
         }
 
         if (res_info != nullptr) {

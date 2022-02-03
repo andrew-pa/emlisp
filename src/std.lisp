@@ -4,6 +4,26 @@
 (define (cdar x) (cdr (car x)))
 (define (cddr x) (cdr (cdr x)))
 
+(define (eqv? a b) (eq? a b))
+
+; (define (bottom x) (let ([z (cons x (bottom 7))]) (bottom z)))
+
+(define (equal? a b)
+    (if (cons? a)
+      (if (cons? b)
+        (if (equal? (car a) (car b))
+          (equal? (cdr a) (cdr b))
+          #f)
+        #f)
+      (eq? a b)))
+
+(define (memv el list)
+    (if (nil? list)
+        #f
+        (if (eqv? el (car list))
+          #t
+          (memv el (cdr list)))))
+
 (defmacro (and ... values)
   (if (nil? values)
     #t
@@ -32,14 +52,29 @@
         result
         `(if ,test ,result (cond ,@rest))))))
 
+(defmacro (case ... args)
+  (let ([key (car args)]
+        [branches (cdr args)])
+    (if (nil? branches)
+      '(macro-expand-error "case missing else")
+      (let ([atoms (caar branches)]
+            [result (car (cdar branches))]
+            [rest (cdr branches)])
+        (if (eq? atoms 'else)
+          result
+          `(if (memv ,key (quote ,atoms)) ,result (case ,key ,@rest)))))))
 
-(define (equal? a b)
-    (if (cons? a)
-      (if (cons? b)
-        (if (equal? (car a) (car b))
-          (equal? (cdr a) (cdr b))
-          #f)
-        #f)
-      (eq? a b)))
+(define (append list el)
+  (if (nil? list)
+    (cons el #n)
+    (cons (car list) (append (cdr list) el))))
 
+(define (map proc list)
+  (if (nil? list)
+    #n
+    (cons (proc (car list)) (map proc (cdr list)))))
 
+(define (fold proc init list)
+  (if (nil? list)
+    init
+    (proc (car list) (fold proc init (cdr list)))))

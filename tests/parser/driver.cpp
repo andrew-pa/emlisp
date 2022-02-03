@@ -5,7 +5,7 @@
 int main(int argc, char* argv[]) {
     std::ifstream input(argv[1]);
 
-    emlisp::runtime rt;
+    emlisp::runtime rt(1024*1024, false);
 
     std::string s;
     while(std::getline(input, s)) {

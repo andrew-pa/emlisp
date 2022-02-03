@@ -128,6 +128,7 @@ namespace emlisp {
 
         frame* alloc_frame();
     
+        uint8_t* gc_copy_limit;
         void gc_process(value& c,
             std::map<value, value>& live_vals,
             uint8_t*& new_next);

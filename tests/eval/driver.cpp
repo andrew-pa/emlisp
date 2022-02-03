@@ -1,3 +1,4 @@
+#include <cstring>
 #include <iostream>
 #include <fstream>
 #include "emlisp.h"
@@ -19,7 +20,7 @@ std::string get_file_contents(const char* filename) {
 int main(int argc, char* argv[]) {
     auto source = get_file_contents(argv[1]);
 
-    emlisp::runtime rt(1024*1024, false);
+    emlisp::runtime rt(1024*1024, argc > 2 && strcmp(argv[2], "--include-stdlib") == 0);
 
     rt.define_fn("assert!", [](emlisp::runtime* rt, emlisp::value args, void* d) {
         if (emlisp::first(args) != emlisp::TRUE) {
@@ -30,6 +31,7 @@ int main(int argc, char* argv[]) {
                 rt->write(std::cout, emlisp::first(emlisp::second(args)));
             }
             std::cout << "\n";
+            std::cout.flush();
             exit(1);
         }
         return emlisp::NIL;
@@ -48,6 +50,7 @@ int main(int argc, char* argv[]) {
                 rt->write(std::cout, emlisp::first(emlisp::second(emlisp::second(args))));
             }
             std::cout << "\n";
+            std::cout.flush();
             exit(1);
         }
         return emlisp::NIL;

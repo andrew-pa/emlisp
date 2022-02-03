@@ -22,7 +22,7 @@ int main(int argc, char* argv[]) {
 			<< "collected " << (ifo.old_size - ifo.new_size) << " bytes\n";
 		return emlisp::NIL;
 	}, nullptr);
-	while (true) {
+	while (std::cin) {
 		try {
 			std::cout << "> ";
 			std::getline(std::cin, line);

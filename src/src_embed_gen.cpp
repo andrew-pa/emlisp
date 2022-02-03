@@ -12,6 +12,7 @@ int main(int argc, char* argv[]) {
         if(line == "%%%%") {
             while(std::getline(source, line)) {
                 for(size_t i = 0; i < line.size();) {
+                    if(line[0] == ';') { break; }
                     if(std::isspace(line[i]) != 0) {
                         while(i < line.size() && (std::isspace(line[i]) != 0)) i++;
                         output << ' ';
