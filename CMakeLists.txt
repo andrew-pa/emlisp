@@ -12,7 +12,7 @@ add_custom_command(
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/lisp_std_template.cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/std.lisp
 )
 
-add_library(emlisp inc/emlisp.h src/memory.cpp src/reader.cpp src/eval.cpp lisp_std.cpp)
+add_library(emlisp inc/emlisp.h src/memory.cpp src/reader.cpp src/eval.cpp src/funcs.cpp lisp_std.cpp)
 target_compile_features(emlisp PUBLIC cxx_std_17)
 export(TARGETS emlisp FILE EmlispTargets.cmake)
 

@@ -66,7 +66,10 @@ namespace emlisp {
         assert(heap != nullptr);
         heap_next = heap;
 
+        define_intrinsics();
+
         if(load_std_lib) {
+            define_std_functions();
             value code = expand(read_all(EMLISP_STD_SRC));
             while(code != NIL) {
                 eval(first(code));
@@ -178,24 +181,22 @@ namespace emlisp {
     }
 
     value runtime::apply_quasiquote(value s) {
-        if (type_of(s) != value_type::cons) {
+        if (type_of(s) != value_type::cons)
             return s;
-        } else if (first(s) == sym_unquote) {
+        if (first(s) == sym_unquote)
             return eval(first(second(s)));
-        } else {
-            if (type_of(first(s)) == value_type::cons
-                    && first(first(s)) == sym_unquote_splicing)
-            {
-                value list = eval(first(second(first(s))));
-                if (list == NIL) return apply_quasiquote(second(s));
-                check_type(list, value_type::cons, "unquote-splicing expression must yield a list");
-                value end = list;
-                while (second(end) != NIL) end = second(end);
-                second(end) = apply_quasiquote(second(s));
-                return list;
-            }
-            return cons(apply_quasiquote(first(s)), apply_quasiquote(second(s)));
+        if (type_of(first(s)) == value_type::cons
+                && first(first(s)) == sym_unquote_splicing)
+        {
+            value list = eval(first(second(first(s))));
+            if (list == NIL) return apply_quasiquote(second(s));
+            check_type(list, value_type::cons, "unquote-splicing expression must yield a list");
+            value end = list;
+            while (second(end) != NIL) end = second(end);
+            second(end) = apply_quasiquote(second(s));
+            return list;
         }
+        return cons(apply_quasiquote(first(s)), apply_quasiquote(second(s)));
     }
     
     value runtime::eval_list(value x) {
@@ -209,30 +210,6 @@ namespace emlisp {
         if (f == sym_quote) {
             result = first(second(x));
         }
-        else if (f == sym_cons) {
-            result = cons(eval(first(second(x))), eval(first(second(second(x)))));
-        }
-        else if (f == sym_car) {
-            result = first(eval(first(second(x))));
-        }
-        else if (f == sym_cdr) {
-            result = second(eval(first(second(x))));
-        }
-        else if (f == sym_eq) {
-            value a = eval(first(second(x)));
-            value b = eval(first(second(second(x))));
-            result = from_bool(a == b);
-        }
-
-        else if (f == sym_nilp) result = from_bool(type_of(eval(first(second(x)))) == value_type::nil);
-        else if (f == sym_boolp) result = from_bool(type_of(eval(first(second(x)))) == value_type::bool_t);
-        else if (f == sym_intp) result = from_bool(type_of(eval(first(second(x)))) == value_type::int_t);
-        else if (f == sym_floatp) result = from_bool(type_of(eval(first(second(x)))) == value_type::float_t);
-        else if (f == sym_strp) result = from_bool(type_of(eval(first(second(x)))) == value_type::str);
-        else if (f == sym_symp) result = from_bool(type_of(eval(first(second(x)))) == value_type::sym);
-        else if (f == sym_consp) result = from_bool(type_of(eval(first(second(x)))) == value_type::cons);
-        else if (f == sym_procp) result = from_bool(type_of(eval(first(second(x)))) == value_type::closure);
-
         else if (f == sym_unique_sym) {
             value name = first(second(x));
             check_type(name, value_type::sym, "unique-symbol expected symbol argument");
@@ -240,7 +217,6 @@ namespace emlisp {
             symbols.push_back(symbols[name >> 4]);
             return sym;
         }
-
         else if (f == sym_let) {
             value bindings = first(second(x));
             value body = first(second(second(x)));
@@ -451,6 +427,8 @@ namespace emlisp {
                     result = apply(x);
                     break;
 
+                default:
+                    throw std::runtime_error("cannot evaluate value");
             }
             return result;
         } catch(const type_mismatch_error& e) {

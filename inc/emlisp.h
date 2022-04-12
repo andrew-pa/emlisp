@@ -112,6 +112,9 @@ namespace emlisp {
             sym_defmacro, sym_ellipsis,
             sym_unique_sym, sym_macro_error;
 
+        void define_intrinsics();
+        void define_std_functions();
+
         std::vector<value> reserved_syms;
 
         std::map<value, std::shared_ptr<function>> macros;
@@ -172,9 +175,9 @@ namespace emlisp {
 
         value eval(value x);
 
-        value expand(value x);
+        value expand(value v);
 
-        void define_fn(std::string_view name, extern_func_t fn, void* data);
+        void define_fn(std::string_view name, extern_func_t fn, void* data = nullptr);
 
         void collect_garbage(heap_info* res_info = nullptr);
 
