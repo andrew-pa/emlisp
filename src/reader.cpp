@@ -134,7 +134,7 @@ namespace emlisp {
         return reverse_list(vals);
     }
 
-	void runtime::write(std::ostream& os, value v) {
+    std::ostream& runtime::write(std::ostream& os, value v) {
 		switch (type_of(v)) {
 		case value_type::nil:
 			os << "nil";
@@ -188,6 +188,7 @@ namespace emlisp {
 			os << "<" << std::hex << v << std::dec << ">";
 			break;
 		}
+        return os;
 	}
 
     std::ostream& operator <<(std::ostream& os, value_type vt) {

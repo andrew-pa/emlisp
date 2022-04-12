@@ -155,7 +155,7 @@ namespace emlisp {
             gc_process(second(c), live_vals, new_next);
         }
         else if (ty == value_type::closure) {
-            function* fn = &functions[*(uint64_t*)(c >> 4) >> 4];
+            function* fn = (function*)(*(uint64_t*)(c >> 4) >> 4);
             gc_process(fn->body, live_vals, new_next);
             auto old_frv = *((value*)(c >> 4) + 1);
 

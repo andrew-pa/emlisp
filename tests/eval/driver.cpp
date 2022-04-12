@@ -73,6 +73,10 @@ int main(int argc, char* argv[]) {
 			cur = rt.handle_for(emlisp::second(*cur));
             std::cout.flush();
 		}
+        catch(emlisp::type_mismatch_error e) {
+			std::cout << "error: " << e.what() << "; actual = " << e.actual << ", expected = " << e.expected << "\n";
+			exit(3);
+        }
 		catch (std::runtime_error e) {
 			std::cout << "error: " << e.what() << "\n";
 			exit(2);

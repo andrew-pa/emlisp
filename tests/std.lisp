@@ -48,7 +48,6 @@
 
 (assert! (equal? (map (lambda (x) x) '(1 2)) '(1 2)))
 
-; this causes the evaluator to segfault for mysterious reasons that don't happen to the REPL:
-; (assert! (equal? (map (lambda (x) 'z) '(1 2)) '(z z)))
+(assert! (equal? (map (lambda (x) 'z) '(1 2)) '(z z)))
 
 (assert! (equal? (fold (lambda (a b) (cons a b)) #n '(1 2 3)) '(1 2 3)))

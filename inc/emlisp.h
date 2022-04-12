@@ -100,7 +100,7 @@ namespace emlisp {
 
     class runtime {
         std::vector<std::string> symbols;
-        std::vector<function> functions;
+        std::vector<std::shared_ptr<function>> functions;
         value parse_value(std::string_view src, size_t& i, bool quasimode = false);
 
         value sym_quote, sym_lambda, sym_if, sym_set,
@@ -114,13 +114,14 @@ namespace emlisp {
 
         std::vector<value> reserved_syms;
 
-        std::map<value, size_t> macros;
+        std::map<value, std::shared_ptr<function>> macros;
         std::vector<std::map<value, value>> scopes;
         value look_up(value name);
 
         value apply(value x);
         void compute_closure(value v, const std::set<value>& bound, std::set<value>& free);
         value apply_quasiquote(value s);
+        value eval_list(value x);
         
         uint8_t* heap;
         uint8_t* heap_next;
@@ -135,6 +136,8 @@ namespace emlisp {
 
         std::map<uint64_t, std::pair<value, uint64_t>> extern_values;
         uint64_t next_extern_value_handle;
+
+        std::shared_ptr<function> create_function(value arg_list, value body);
 
         void ser_value(std::ostream&, std::set<value>&, value);
     public:
@@ -165,7 +168,7 @@ namespace emlisp {
 
         value read(std::string_view src);
         value read_all(std::string_view src);
-        void write(std::ostream&, value);
+        std::ostream& write(std::ostream&, value);
 
         value eval(value x);
 

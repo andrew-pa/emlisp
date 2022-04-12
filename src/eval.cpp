@@ -89,6 +89,21 @@ namespace emlisp {
         }
     }
 
+    std::shared_ptr<function> runtime::create_function(value arg_list, value body) {
+        std::shared_ptr<function> fn = nullptr;
+        auto existing_fn = std::find_if(std::begin(functions), std::end(functions), [&](auto f) {
+                return f->body == body; // NOTE: this is a (eq?) check for reference equality on the body, which should make sure that we
+                                        // deduplicate all function bodies coming from the same syntactic location, but is janky!
+                });
+        if(existing_fn != std::end(functions)) {
+            fn = *existing_fn;
+        } else {
+            fn = std::make_shared<function>(arg_list, body, sym_ellipsis);
+            functions.emplace_back(fn);
+        }
+        return fn;
+    }
+
     void runtime::compute_closure(value v, const std::set<value>& bound, std::set<value>& free) {
         auto ty = type_of(v);
         if (ty == value_type::sym) {
@@ -181,6 +196,11 @@ namespace emlisp {
             }
             return cons(apply_quasiquote(first(s)), apply_quasiquote(second(s)));
         }
+    }
+    
+    value runtime::eval_list(value x) {
+        if(x == NIL) return NIL;
+        return cons(eval(first(x)), eval_list(second(x)));
     }
 
     value runtime::apply(value x) {
@@ -282,19 +302,18 @@ namespace emlisp {
             value args = first(second(x));
             value body = first(second(second(x)));
             // create function
-            uint64_t fn = functions.size();
-            functions.emplace_back(args, body, sym_ellipsis);
+            auto fn = create_function(args, body);
             // TODO: deal with varadic functions
             frame* clo = alloc_frame();
-            std::set<value> bound(functions[fn].arguments.begin(), functions[fn].arguments.end()),
-                free;
+            std::set<value> bound(fn->arguments.begin(), fn->arguments.end());
+            std::set<value> free;
             bound.insert(reserved_syms.begin(), reserved_syms.end());
             compute_closure(body, bound, free);
             for (value free_name : free) {
                 clo->set(free_name, look_up(free_name));
             }
             value closure = cons(
-                    (fn << 4) | (uint64_t)value_type::_extern,
+                    ((uint64_t)fn.get() << 4) | (uint64_t)value_type::_extern,
                     (((uint64_t)clo) << 4) | (uint64_t)value_type::_extern);
             closure -= 1; // cons -> closure
             result = closure;
@@ -332,11 +351,10 @@ namespace emlisp {
                 value args = second(head);
                 value body = first(second(second(x)));
                 // create function
-                uint64_t fn = functions.size();
-                functions.emplace_back(args, body, sym_ellipsis);
+                auto fn = create_function(args, body);
                 // TODO: deal with varadic functions
                 frame* clo = alloc_frame();
-                std::set<value> bound(functions[fn].arguments.begin(), functions[fn].arguments.end()),
+                std::set<value> bound(fn->arguments.begin(), fn->arguments.end()),
                     free;
                 bound.insert(reserved_syms.begin(), reserved_syms.end());
                 bound.insert(name);
@@ -345,7 +363,7 @@ namespace emlisp {
                     clo->set(free_name, look_up(free_name));
                 }
                 value closure = cons(
-                        (fn << 4) | (uint64_t)value_type::_extern,
+                        ((uint64_t)fn.get() << 4) | (uint64_t)value_type::_extern,
                         (((uint64_t)clo) << 4) | (uint64_t)value_type::_extern);
                 closure -= 1; // cons -> closure
                 clo->set(name, closure); //enable recursion
@@ -361,29 +379,48 @@ namespace emlisp {
 
         else {
             auto fv = eval(f);
+            // this->write(std::cout << "!!! ", fv) << "\n";
             if (type_of(fv) == value_type::_extern) {
                 extern_func_t fn = (extern_func_t)(*(uint64_t*)(fv >> 4) >> 4);
                 void* closure = (frame*)(*((uint64_t*)(fv >> 4) + 1) >> 4);
-                value a = second(x);
-                while (a != NIL) {
-                    first(a) = eval(first(a));
-                    a = second(a);
-                }
-                result = (*fn)(this, second(x), closure);
+                value a = eval_list(second(x));
+                result = (*fn)(this, a, closure);
             }
             else {
                 check_type(fv, value_type::closure, "expected function for function call");
-                function* fn = &functions[*(uint64_t*)(fv >> 4) >> 4];
+                function* fn = (function*)(*(uint64_t*)(fv >> 4) >> 4);
+                //std::cout << "calling funtion " << std::hex << fn << std::dec << "/" << fn->arguments.size() << "\n\tbody = ";
+                //this->write(std::cout, fn->body) << "\n";
                 frame* closure = (frame*)(*((uint64_t*)(fv >> 4) + 1) >> 4);
                 std::map<value, value> fr;
                 value args = second(x);
                 for (size_t i = 0; i < fn->arguments.size(); ++i) {
                     if (args == NIL) throw std::runtime_error("argument count mismatch");
-                    fr[fn->arguments[i]] = eval(first(args));
+                    auto arg = fn->arguments[i];
+                    //std::cout << "function " << std::hex << fn << std::dec << "| i = " << i << ", fa[i] = ";
+                    // this->write(std::cout, arg);
+                    //std::cout << ", a[i] = ";
+                    // this->write(std::cout, first(args));
+                    //std::cout << " →\n";
+                    auto val = eval(first(args)); // some how executing this line of code manages to wreck fn->arguments and also somehow takes out scoping info because at it is currently written, it complains that it can't find local variables
+                    // this->write(std::cout, val);
+                    //std::cout << "\n";
+                    fr.emplace(arg, val);
+                    // fr[fn->arguments[i]] = eval(first(args));
                     args = second(args);
                 }
                 scopes.push_back(closure->data);
                 scopes.push_back(fr);
+                /*std::cout << "scopes:\n";
+                for(const auto& sc : scopes) {
+                    std::cout << "\t{  ";
+                    for(const auto&[name, val] : sc) {
+                        this->write(std::cout, name) << ": ";
+                        this->write(std::cout, val) << "  ";
+                    }
+                    std::cout << "}\n";
+                }*/
+
                 result = eval(fn->body);
                 scopes.pop_back();
                 closure->data = scopes[scopes.size() - 1];
@@ -433,9 +470,7 @@ namespace emlisp {
         if (first(v) == sym_defmacro) {
             value head = first(second(v));
             value body = first(second(second(v)));
-			uint64_t fn = functions.size();
-			functions.emplace_back(second(head), body, sym_ellipsis);
-            macros[first(head)] = fn;
+            macros[first(head)] = create_function(second(head), body);
             return NIL;
         }
         if (first(v) == sym_macro_error) {
@@ -446,7 +481,7 @@ namespace emlisp {
         if (type_of(first(v)) == value_type::sym) {
             auto mc = macros.find(first(v));
             if (mc != macros.end()) {
-                auto fn = &functions[mc->second];
+                auto fn = mc->second;
                 std::map<value, value> arguments;
                 if (fn->varadic) {
                     arguments[fn->arguments[0]] = second(v);
