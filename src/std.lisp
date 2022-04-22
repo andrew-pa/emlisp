@@ -6,7 +6,8 @@
 
 (define (eqv? a b) (eq? a b))
 
-; (define (bottom x) (let ([z (cons x (bottom 7))]) (bottom z)))
+(define (length x)
+  (if (nil? x) 0 (+ 1 (length (cdr x)))))
 
 (define (equal? a b)
     (if (cons? a)

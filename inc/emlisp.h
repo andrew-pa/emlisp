@@ -71,7 +71,7 @@ namespace emlisp {
 
     inline float to_float(value v) {
         check_type(v, value_type::float_t);
-        uint64_t x = v << 4;
+        uint64_t x = v >> 4;
         return *((float*)&x);
     }
 
@@ -104,10 +104,7 @@ namespace emlisp {
         value parse_value(std::string_view src, size_t& i, bool quasimode = false);
 
         value sym_quote, sym_lambda, sym_if, sym_set,
-            sym_cons, sym_car, sym_cdr, sym_eq, sym_define,
-            sym_nilp, sym_boolp, sym_intp, sym_floatp, sym_strp,
-            sym_symp, sym_consp, sym_procp,
-            sym_let, sym_letseq, sym_letrec,
+            sym_define, sym_let, sym_letseq, sym_letrec,
             sym_quasiquote, sym_unquote, sym_unquote_splicing,
             sym_defmacro, sym_ellipsis,
             sym_unique_sym, sym_macro_error;
@@ -155,8 +152,8 @@ namespace emlisp {
         }
 
         inline value from_float(float v) {
-            auto *vp = (uint64_t*)&v;
-            return (*vp << 4) | (uint64_t)value_type::float_t;
+            auto *vp = (uint32_t*)&v;
+            return (uint64_t(*vp) << 4) | (uint64_t)value_type::float_t;
         }
 
         value from_str(std::string_view s);
@@ -187,6 +184,19 @@ namespace emlisp {
 
         friend class value_handle;
         class value_handle handle_for(value v);
+
+        template<typename T>
+        value make_extern_reference(T* ob) {
+            return cons((value)ob, from_int(typeid(T).hash_code())) | (value)value_type::_extern;
+        }
+
+        template<typename T>
+        T* get_extern_reference(value v) {
+            v = v | (value)value_type::cons;
+            if(typeid(T).hash_code() != to_int(second(v)))
+                throw std::runtime_error(std::string("mismatched type unwraping extern value, expected: ") + typeid(T).name());
+            return (T*)first(v);
+        }
     };
 
     // must live as long as the runtime from which it was obtained
@@ -197,8 +207,8 @@ namespace emlisp {
         value_handle(runtime* rt, uint64_t h) : rt(rt), h(h) {}
         value_handle(const value_handle& other);
         value_handle& operator =(const value_handle& other);
-        value_handle(value_handle&& other);
-        value_handle& operator =(value_handle&& other);
+        value_handle(value_handle&& other) noexcept;
+        value_handle& operator =(value_handle&& other) noexcept;
         const value& operator*() const;
         value& operator*();
         operator value();

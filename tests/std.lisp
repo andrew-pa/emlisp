@@ -1,4 +1,7 @@
 
+(assert-eq! (length '()) 0)
+(assert-eq! (length '(1 2 3)) 3)
+
 (assert! (equal? '(a ((b) (c))) '(a ((b) (c)))))
 
 (assert! (memv 'a '(c a b)))
@@ -51,3 +54,4 @@
 (assert! (equal? (map (lambda (x) 'z) '(1 2)) '(z z)))
 
 (assert! (equal? (fold (lambda (a b) (cons a b)) #n '(1 2 3)) '(1 2 3)))
+

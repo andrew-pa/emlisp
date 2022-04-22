@@ -250,14 +250,14 @@ namespace emlisp {
         rt->extern_values[h].second++;
         return *this;
     }
-    value_handle::value_handle(value_handle&& other)
+    value_handle::value_handle(value_handle&& other) noexcept
         : rt(other.rt), h(other.h)
     {
         other.rt = nullptr;
         other.h = 0;
     }
 
-    value_handle& value_handle::operator =(value_handle&& other) {
+    value_handle& value_handle::operator =(value_handle&& other) noexcept {
         rt->extern_values[h].second--;
         rt = other.rt;
         h = other.h;

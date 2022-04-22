@@ -27,19 +27,6 @@ namespace emlisp {
         sym_set = symbol("set!");
         sym_define = symbol("define");
         sym_defmacro = symbol("defmacro");
-        sym_cons = symbol("cons");
-        sym_car = symbol("car");
-        sym_cdr = symbol("cdr");
-        sym_eq = symbol("eq?");
-
-        sym_nilp = symbol("nil?");
-        sym_boolp = symbol("bool?");
-        sym_intp = symbol("int?");
-        sym_floatp = symbol("float?");
-        sym_strp = symbol("str?");
-        sym_symp = symbol("sym?");
-        sym_consp = symbol("cons?");
-        sym_procp = symbol("proc?");
 
         sym_let = symbol("let");
         sym_letseq = symbol("let*");
@@ -54,11 +41,10 @@ namespace emlisp {
         sym_ellipsis = symbol("...");
         sym_macro_error = symbol("macro-expand-error");
 
-        reserved_syms = { sym_quote, sym_quasiquote, sym_lambda, sym_if, sym_set,
-				sym_cons, sym_car, sym_cdr, sym_define,
-				sym_eq, sym_nilp, sym_boolp, sym_intp, sym_ellipsis,
-				sym_floatp, sym_strp, sym_symp, sym_consp, sym_procp,
-				sym_let, sym_letseq, sym_letrec, sym_unquote, sym_unquote_splicing, sym_defmacro };
+        reserved_syms = {
+            sym_quote, sym_quasiquote, sym_lambda, sym_if, sym_set,sym_define, sym_ellipsis,
+            sym_let, sym_letseq, sym_letrec, sym_unquote, sym_unquote_splicing, sym_defmacro
+        };
 
         scopes.emplace_back();
 
