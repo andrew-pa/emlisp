@@ -1,4 +1,5 @@
 #include "emlisp.h"
+#include <cmath>
 
 namespace emlisp {
     void runtime::define_intrinsics() {
@@ -43,7 +44,7 @@ namespace emlisp {
                 args = second(args); \
                 while(args != NIL) {\
                     auto x = to_int(first(args));\
-                    OP \
+                    result OP x; \
                     args = second(args);\
                 }\
                 return rt->from_int(result);\
@@ -53,24 +54,87 @@ namespace emlisp {
                 args = second(args); \
                 while(args != NIL) {\
                     auto x = to_float(first(args));\
-                    OP \
+                    result OP x; \
                     args = second(args);\
                 }\
                 return rt->from_float(result);\
             }\
+            if(ty == value_type::fvec) {\
+                auto result_val = first(args); \
+                auto [result_len, result_ptr] = rt->to_fvec(result_val);\
+                args = second(args); \
+                while(args != NIL) {\
+                    auto [x_len, x_ptr] = rt->to_fvec(first(args));\
+                    if(result_len != x_len) throw std::runtime_error("fvec " NAME " arguments must have same length"); \
+                    for(auto i = 0; i < result_len; ++i) \
+                    result_ptr[i] OP x_ptr[i]; \
+                    args = second(args);\
+                }\
+                return result_val;\
+            }\
             throw std::runtime_error("expected numerical type to math " NAME); \
         })
 
-        MATH_OP("+", result += x;);
-        MATH_OP("-", result -= x;);
-        MATH_OP("*", result *= x;);
-        MATH_OP("/", result /= x;);
+        MATH_OP("+", +=);
+        MATH_OP("-", -=);
+        MATH_OP("*", *=);
+        MATH_OP("/", /=);
 
         // int //
+#define BIT_OP(NAME, OP) \
+        define_fn(NAME, [](runtime* rt, value args, void* d) {\
+            int64_t result = to_int(first(args));\
+            args = second(args); \
+            while(args != NIL) {\
+                auto x = to_int(first(args));\
+                result OP x;\
+                args = second(args);\
+            }\
+            return rt->from_int(result);\
+        })
+        BIT_OP("bit&", &=);
+        BIT_OP("bit|", |=);
+        BIT_OP("bit^", ^=);
+        BIT_OP("bit-lsh", <<=);
+        BIT_OP("bit-rsh", >>=);
 
         // float //
+        define_fn("sin", [](runtime* rt, value args, void* d) {
+            return rt->from_float(std::sin(to_float(first(args))));
+        });
+        define_fn("cos", [](runtime* rt, value args, void* d) {
+            return rt->from_float(std::cos(to_float(first(args))));
+        });
+        define_fn("tan", [](runtime* rt, value args, void* d) {
+            return rt->from_float(std::tan(to_float(first(args))));
+        });
+        define_fn("exp", [](runtime* rt, value args, void* d) {
+            return rt->from_float(std::exp(to_float(first(args))));
+        });
+        define_fn("ln", [](runtime* rt, value args, void* d) {
+            return rt->from_float(std::log(to_float(first(args))));
+        });
 
         // fvec //
+        define_fn("fvec", [](runtime* rt, value args, void* d) {
+            float temp[16];
+            size_t i = 0;
+            while(args != NIL && i < 16) {
+                temp[i++] = to_float(first(args));
+                args = second(args);
+            }
+            return rt->from_fvec(i, temp);
+        });
+        define_fn("dot", [](runtime* rt, value args, void* d) {
+            auto [a_len, a_ptr] = rt->to_fvec(first(args));
+            auto [b_len, b_ptr] = rt->to_fvec(first(second(args)));
+            if(a_len != b_len)
+                throw std::runtime_error("fvec dot product must have equal length arguments");
+            float result = 0;
+            for(uint32_t i = 0; i < a_len; ++i)
+                result += a_ptr[i] * b_ptr[i];
+            return rt->from_float(result);
+        });
 
         // string //
         define_fn("string-length", [](runtime* rt, value args, void* d) {

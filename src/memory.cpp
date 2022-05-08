@@ -52,7 +52,13 @@ namespace emlisp {
         memcpy(v + 1, src_v, sizeof(float) * size);
         *v = size;
 		return (((uint64_t)v) << 4) | (uint64_t)value_type::fvec;
-    
+    }
+
+    std::pair<uint32_t, float*> runtime::to_fvec(value v) {
+        check_type(v, value_type::fvec, "get fvec from value");
+        auto length = *(uint32_t*)(v >> 4);
+        auto data   = (float*)((v >> 4) + sizeof(uint32_t));
+        return {length, data};
     }
 
     value frame::get(value name) {

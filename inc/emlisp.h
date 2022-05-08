@@ -160,6 +160,7 @@ namespace emlisp {
         std::string_view to_str(value v);
 
         value from_fvec(uint32_t size, float* v);
+        std::pair<uint32_t, float*> to_fvec(value v);
 
         value symbol(std::string_view s);
         const std::string& symbol_str(value sym) const;
@@ -176,6 +177,8 @@ namespace emlisp {
 
         void define_fn(std::string_view name, extern_func_t fn, void* data = nullptr);
 
+        /// running the GC will invalidate any pointers returned from this runtime
+        /// if you need to maintain references over GC runs, use value_handles
         void collect_garbage(heap_info* res_info = nullptr);
 
         inline size_t current_heap_size() const {
