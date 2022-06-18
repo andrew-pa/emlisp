@@ -43,7 +43,7 @@ namespace emlisp {
         return {data, length};
     }
 
-    value runtime::from_fvec(uint32_t size, float* src_v) {
+    value runtime::from_fvec(uint32_t size, const float* src_v) {
 		if (heap_next - heap > heap_size) {
 			throw std::runtime_error("out of memory");
 		}

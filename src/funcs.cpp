@@ -125,15 +125,17 @@ namespace emlisp {
             }
             return rt->from_fvec(i, temp);
         });
-        define_fn("dot", [](runtime* rt, value args, void* d) {
-            auto [a_len, a_ptr] = rt->to_fvec(first(args));
-            auto [b_len, b_ptr] = rt->to_fvec(first(second(args)));
-            if(a_len != b_len)
-                throw std::runtime_error("fvec dot product must have equal length arguments");
-            float result = 0;
-            for(uint32_t i = 0; i < a_len; ++i)
-                result += a_ptr[i] * b_ptr[i];
-            return rt->from_float(result);
+
+        define_fn("fvec-ref", [](runtime* rt, value args, void* d) {
+            auto index = to_int(first(second(args)));
+            return rt->from_float(rt->to_fvec(first(args)).second[index]);
+        });
+
+        define_fn("fvec-set", [](runtime* rt, value args, void* d) {
+            auto index = to_int(first(second(args)));
+            auto value = to_float(first(second(second(args))));
+            rt->to_fvec(first(args)).second[index] = value;
+            return NIL;
         });
 
         // string //
@@ -154,6 +156,16 @@ namespace emlisp {
     }
 
     void runtime::define_std_functions() {
+        define_fn("dot", [](runtime* rt, value args, void* d) {
+            auto [a_len, a_ptr] = rt->to_fvec(first(args));
+            auto [b_len, b_ptr] = rt->to_fvec(first(second(args)));
+            if(a_len != b_len)
+                throw std::runtime_error("fvec dot product must have equal length arguments");
+            float result = 0;
+            for(uint32_t i = 0; i < a_len; ++i)
+                result += a_ptr[i] * b_ptr[i];
+            return rt->from_float(result);
+        });
     }
 }
 

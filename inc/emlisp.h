@@ -118,7 +118,6 @@ namespace emlisp {
         std::vector<std::map<value, value>> scopes;
         value look_up(value name);
 
-        value apply(value x);
         void compute_closure(value v, const std::set<value>& bound, std::set<value>& free);
         value apply_quasiquote(value s);
         value eval_list(value x);
@@ -159,7 +158,7 @@ namespace emlisp {
         value from_str(std::string_view s);
         std::string_view to_str(value v);
 
-        value from_fvec(uint32_t size, float* v);
+        value from_fvec(uint32_t size, const float* v);
         std::pair<uint32_t, float*> to_fvec(value v);
 
         value symbol(std::string_view s);
@@ -172,6 +171,7 @@ namespace emlisp {
         std::ostream& write(std::ostream&, value);
 
         value eval(value x);
+        value apply(value f, value arguments);
 
         value expand(value v);
 
@@ -190,6 +190,7 @@ namespace emlisp {
 
         template<typename T>
         value make_extern_reference(T* ob) {
+            // TODO: make this just cast the ptr in release mode and not bother with type checking
             return cons((value)ob, from_int(typeid(T).hash_code())) | (value)value_type::_extern;
         }
 

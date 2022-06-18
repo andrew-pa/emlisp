@@ -190,22 +190,22 @@ namespace emlisp {
         return cons(eval(first(x)), eval_list(second(x)));
     }
 
-    value runtime::apply(value x) {
+    //TODO: f should probably be a function object, we should check for builtins somewhere else
+    value runtime::apply(value f, value arguments) {
         value result = NIL;
-        value f = first(x);
         if (f == sym_quote) {
-            result = first(second(x));
+            result = first(arguments);
         }
         else if (f == sym_unique_sym) {
-            value name = first(second(x));
+            value name = first(arguments);
             check_type(name, value_type::sym, "unique-symbol expected symbol argument");
             value sym = (uint64_t)(symbols.size() << 4) | (uint64_t)value_type::sym;
             symbols.push_back(symbols[name >> 4]);
             return sym;
         }
         else if (f == sym_let) {
-            value bindings = first(second(x));
-            value body = first(second(second(x)));
+            value bindings = first(arguments);
+            value body = first(second(arguments));
             std::map<value, value> scope;
             value bc = bindings;
             while (bc != NIL) {
@@ -219,8 +219,8 @@ namespace emlisp {
             result = eval(body);
             scopes.pop_back();
         } else if (f == sym_letseq) {
-            value bindings = first(second(x));
-            value body = first(second(second(x)));
+            value bindings = first(arguments);
+            value body = first(second(arguments));
             scopes.push_back({});
             value bc = bindings;
             while (bc != NIL) {
@@ -233,8 +233,8 @@ namespace emlisp {
             result = eval(body);
             scopes.pop_back();
         } else if (f == sym_letrec) {
-            value bindings = first(second(x));
-            value body = first(second(second(x)));
+            value bindings = first(arguments);
+            value body = first(second(arguments));
             std::map<value, value> scope;
             value bc = bindings;
             while (bc != NIL) {
@@ -261,8 +261,8 @@ namespace emlisp {
         }
 
         else if (f == sym_lambda) {
-            value args = first(second(x));
-            value body = first(second(second(x)));
+            value args = first(arguments);
+            value body = first(second(arguments));
             // create function
             auto fn = create_function(args, body);
             // TODO: deal with varadic functions
@@ -282,15 +282,15 @@ namespace emlisp {
         }
 
         else if (f == sym_if) {
-            value cond = eval(first(second(x)));
+            value cond = eval(first(arguments));
             if (cond != FALSE) {
-                result = eval(first(second(second(x))));
+                result = eval(first(second(arguments)));
             } else {
-                result = eval(first(second(second(second(x)))));
+                result = eval(first(second(second(arguments))));
             }
         } else if (f == sym_set) {
-            value name = first(second(x));
-            value val = eval(first(second(second(x))));
+            value name = first(arguments);
+            value val = eval(first(second(arguments)));
             int i;
             for (i = scopes.size() - 1; i >= 0; i--) {
                 auto f = scopes[i].find(name);
@@ -302,16 +302,16 @@ namespace emlisp {
             result = NIL;
         }
         else if (f == sym_define) {
-            value head = first(second(x));
+            value head = first(arguments);
             if (type_of(head) == value_type::sym) {
-                value val = first(second(second(x)));
+                value val = first(second(arguments));
                 scopes[scopes.size() - 1][head] = eval(val);
                 result = NIL;
             }
             else if (type_of(head) == value_type::cons) {
                 value name = first(head);
                 value args = second(head);
-                value body = first(second(second(x)));
+                value body = first(second(arguments));
                 // create function
                 auto fn = create_function(args, body);
                 // TODO: deal with varadic functions
@@ -336,7 +336,7 @@ namespace emlisp {
                 throw std::runtime_error("invalid define");
             }
         } else if (f == sym_quasiquote) {
-            result = apply_quasiquote(first(second(x)));
+            result = apply_quasiquote(first(arguments));
         }
 
         else {
@@ -345,7 +345,7 @@ namespace emlisp {
             if (type_of(fv) == value_type::_extern) {
                 extern_func_t fn = (extern_func_t)(*(uint64_t*)(fv >> 4) >> 4);
                 void* closure = (frame*)(*((uint64_t*)(fv >> 4) + 1) >> 4);
-                value a = eval_list(second(x));
+                value a = eval_list(arguments);
                 result = (*fn)(this, a, closure);
             }
             else {
@@ -355,7 +355,7 @@ namespace emlisp {
                 //this->write(std::cout, fn->body) << "\n";
                 frame* closure = (frame*)(*((uint64_t*)(fv >> 4) + 1) >> 4);
                 std::map<value, value> fr;
-                value args = second(x);
+                value args = arguments;
                 for (size_t i = 0; i < fn->arguments.size(); ++i) {
                     if (args == NIL) throw std::runtime_error("argument count mismatch");
                     auto arg = fn->arguments[i];
@@ -410,7 +410,7 @@ namespace emlisp {
                     break;
 
                 case value_type::cons:
-                    result = apply(x);
+                    result = apply(first(x), second(x));
                     break;
 
                 default:
