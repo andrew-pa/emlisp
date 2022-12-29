@@ -12,6 +12,17 @@ add_custom_command(
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/lisp_std_template.cpp ${CMAKE_CURRENT_SOURCE_DIR}/src/std.lisp
 )
 
+add_executable(emlisp_autobind src/autobind/main.cpp)
+
+function(process_emlisp_bindings INFILES OUTFILE)
+    list(JOIN ${INFILES} " " INFILES_CMD)
+    add_custom_command(
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${OUTFILE}
+        COMMAND emlisp_autobind ${CMAKE_CURRENT_BINARY_DIR}/${OUTFILE} ${CMAKE_CURRENT_SOURCE_DIR} : ${INFILES_CMD}
+        DEPENDS ${INFILES}
+    )
+endfunction()
+
 add_library(emlisp inc/emlisp.h src/memory.cpp src/reader.cpp src/eval.cpp src/funcs.cpp lisp_std.cpp)
 target_compile_features(emlisp PUBLIC cxx_std_17)
 export(TARGETS emlisp FILE EmlispTargets.cmake)
@@ -43,3 +54,8 @@ foreach(test ${test_inputs})
 	add_test(NAME ${test} COMMAND test_eval_driver ${test})
 endforeach()
 add_test(NAME test-stdlib COMMAND test_eval_driver ${CMAKE_CURRENT_SOURCE_DIR}/tests/std.lisp --include-stdlib)
+
+process_emlisp_bindings(tests/autobind/api.h test_bind.cpp)
+add_executable(test_autobind_driver tests/autobind/test.cpp test_bind.cpp)
+target_link_libraries(test_autobind_driver emlisp)
+add_test(NAME test-autobind COMMAND test_autobind_driver)
