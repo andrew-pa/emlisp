@@ -59,6 +59,12 @@ namespace emlisp {
         return *((value*)(cell >> 4) + 1);
     }
 
+    inline value nth(value list, int n) {
+        if(list == NIL) return NIL;
+        if(n == 0) return first(list);
+        return nth(second(list), n-1);
+    }
+
     inline bool to_bool(value v) {
         check_type(v, value_type::bool_t);
         return v != FALSE;

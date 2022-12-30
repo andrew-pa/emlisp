@@ -81,8 +81,8 @@ struct property {
         : name(name), type(std::move(type)), readonly(readonly) {}
 
     std::ostream& print(std::ostream& out, const tokenizer& toks) const {
-        out << "P " << toks.identifiers[name] << (readonly ? " (RO)" : " (RW)") << ": ";
-        return type->print(out, toks);
+        out << "P " << toks.identifiers[name] << ": ";
+        return type->print(out, toks) << (readonly ? " (ro)" : " (rw)");
     }
 };
 
