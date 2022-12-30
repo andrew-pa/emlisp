@@ -89,8 +89,8 @@ namespace emlisp {
         frame(std::map<value, value>& data) : data(std::move(data)) {}
 
         value get(value name);
-		void set(value name, value val);
-	};
+        void set(value name, value val);
+    };
 
     typedef value(*extern_func_t)(class runtime*, value, void*);
 
