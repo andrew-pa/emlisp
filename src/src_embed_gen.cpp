@@ -1,5 +1,5 @@
-#include <iostream>
 #include <fstream>
+#include <iostream>
 
 int main(int argc, char* argv[]) {
     // std::cout << argv[1] << "\n" << argv[2] << "\n" << argv[3] << "\n";
@@ -7,14 +7,15 @@ int main(int argc, char* argv[]) {
     std::ofstream output(argv[1]);
     std::ifstream template_input(argv[2]);
     std::ifstream source(argv[3]);
-    std::string line;
+    std::string   line;
     while(std::getline(template_input, line)) {
         if(line == "%%%%") {
             while(std::getline(source, line)) {
                 for(size_t i = 0; i < line.size();) {
-                    if(line[0] == ';') { break; }
+                    if(line[0] == ';') break;
                     if(std::isspace(line[i]) != 0) {
-                        while(i < line.size() && (std::isspace(line[i]) != 0)) i++;
+                        while(i < line.size() && (std::isspace(line[i]) != 0))
+                            i++;
                         output << ' ';
                     } else {
                         output << line[i++];
