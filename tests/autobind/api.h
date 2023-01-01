@@ -1,4 +1,5 @@
 #pragma once
+#include <iostream>
 #include <string>
 #include "emlisp_autobind.h"
 
@@ -23,11 +24,13 @@ EL_OBJ struct counter {
     EL_PROP(r) size_t value;
 
     EL_M void reset() {
+        std::cout << "counter reset!\n";
         value = 0;
     }
 
     EL_M size_t increment(size_t amount = 1) {
         value += amount;
+        std::cout << "counter = " << value << "!\n";
         return value;
     }
 };

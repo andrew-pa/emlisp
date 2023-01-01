@@ -1,18 +1,17 @@
 #pragma once
-#include <iostream>
+#include "emlisp_autobind.h"
+#include "token.h"
 #include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
-#include <fstream>
-#include <memory>
-
-#include "emlisp_autobind.h"
-#include "token.h"
 
 struct cpptype {
     virtual std::ostream& print(std::ostream& out, const tokenizer& toks) const = 0;
-    virtual ~cpptype() = default;
+    virtual ~cpptype()                                                          = default;
 };
 
 using id = size_t;
@@ -21,23 +20,23 @@ struct plain_type : public cpptype {
     id name;
 
     plain_type(id name) : name(name) {}
+
     std::ostream& print(std::ostream& out, const tokenizer& toks) const override {
         return out << toks.identifiers[name];
     }
 };
 
 struct template_instance : public cpptype {
-    id name;
+    id                                    name;
     std::vector<std::shared_ptr<cpptype>> args;
 
-    template_instance(id name, std::vector<std::shared_ptr<cpptype>> args) : name(name), args(std::move(args)) {}
-
+    template_instance(id name, std::vector<std::shared_ptr<cpptype>> args)
+        : name(name), args(std::move(args)) {}
 
     std::ostream& print(std::ostream& out, const tokenizer& toks) const override {
         out << toks.identifiers[name] << "<";
-        for(const auto& t : args) {
+        for(const auto& t : args)
             t->print(out, toks) << ", ";
-        }
         return out << ">";
     }
 };
@@ -47,7 +46,6 @@ struct const_type : public cpptype {
 
     const_type(std::shared_ptr<cpptype> u) : underlying(std::move(u)) {}
 
-
     std::ostream& print(std::ostream& out, const tokenizer& toks) const override {
         out << "const ";
         return underlying->print(out, toks);
@@ -56,6 +54,7 @@ struct const_type : public cpptype {
 
 struct ref_type : public cpptype {
     std::shared_ptr<cpptype> deref;
+
     ref_type(std::shared_ptr<cpptype> u) : deref(std::move(u)) {}
 
     std::ostream& print(std::ostream& out, const tokenizer& toks) const override {
@@ -65,6 +64,7 @@ struct ref_type : public cpptype {
 
 struct ptr_type : public cpptype {
     std::shared_ptr<cpptype> deref;
+
     ptr_type(std::shared_ptr<cpptype> u) : deref(std::move(u)) {}
 
     std::ostream& print(std::ostream& out, const tokenizer& toks) const override {
@@ -73,9 +73,9 @@ struct ptr_type : public cpptype {
 };
 
 struct property {
-    id name;
+    id                       name;
     std::shared_ptr<cpptype> type;
-    bool readonly;
+    bool                     readonly;
 
     property(std::shared_ptr<cpptype> type, id name, bool readonly)
         : name(name), type(std::move(type)), readonly(readonly) {}
@@ -87,16 +87,16 @@ struct property {
 };
 
 struct method {
-    id name;
-    std::shared_ptr<cpptype> return_type;
+    id                                                   name;
+    std::shared_ptr<cpptype>                             return_type;
     std::vector<std::pair<std::shared_ptr<cpptype>, id>> args;
 
     method(id name, std::shared_ptr<cpptype> return_type)
-        : name(name), return_type(std::move(return_type))  { }
+        : name(name), return_type(std::move(return_type)) {}
 
     std::ostream& print(std::ostream& out, const tokenizer& toks) const {
         out << "M " << toks.identifiers[name] << "(";
-        for(const auto&[ty, nm] : args) {
+        for(const auto& [ty, nm] : args) {
             out << toks.identifiers[nm] << ": ";
             ty->print(out, toks) << ", ";
         }
@@ -106,12 +106,11 @@ struct method {
 };
 
 struct object {
-    id name;
+    id                    name;
     std::vector<property> properties;
-    std::vector<method> methods;
+    std::vector<method>   methods;
 
-    object(id name)
-        : name(name) {}
+    object(id name) : name(name) {}
 
     std::ostream& print(std::ostream& out, const tokenizer& toks) const {
         out << "object " << toks.identifiers[name] << " {\n";
@@ -131,30 +130,30 @@ struct world {
     std::vector<object> objects;
 
     std::ostream& print(std::ostream& out, const tokenizer& toks) const {
-        for(const auto& ob : objects) {
+        for(const auto& ob : objects)
             ob.print(out, toks) << "\n";
-        }
         return out;
     }
 };
 
 struct parse_error : public std::runtime_error {
-    token tk;
+    token  tk;
     size_t ln;
 
     parse_error(token tk, size_t ln, const std::string& s)
-        : std::runtime_error(s), tk(tk), ln(ln) { }
+        : std::runtime_error(s), tk(tk), ln(ln) {}
 };
 
 struct parser {
     tokenizer& toks;
+
     parser(tokenizer& toks) : toks(toks) {}
 
     std::optional<object> next_object();
-private:
-    void check_next_symbol(symbol_type s, const std::string& msg);
-    std::shared_ptr<cpptype> parse_type();
-    property parse_property();
-    method parse_method();
-};
 
+  private:
+    void                     check_next_symbol(symbol_type s, const std::string& msg);
+    std::shared_ptr<cpptype> parse_type();
+    property                 parse_property();
+    method                   parse_method();
+};

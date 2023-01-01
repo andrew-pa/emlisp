@@ -1,85 +1,81 @@
 #pragma once
 #include <iostream>
 #include <map>
+#include <optional>
 #include <string>
 #include <vector>
-#include <optional>
 
 enum class symbol_type {
-    open_paren, close_paren,
-    open_brace, close_brace,
-    open_sq, close_sq,
-    open_angle, close_angle,
-    colon, double_colon,
-    semicolon, comma,
-    ampersand, star, eq
+    open_paren,
+    close_paren,
+    open_brace,
+    close_brace,
+    open_sq,
+    close_sq,
+    open_angle,
+    close_angle,
+    colon,
+    double_colon,
+    semicolon,
+    comma,
+    ampersand,
+    star,
+    eq
 };
 
-enum class keyword {
-    class_, struct_, const_, el_obj, el_prop, el_m, read, readwrite
-};
+enum class keyword { class_, struct_, const_, el_obj, el_prop, el_m, read, readwrite };
 
 struct token {
-    enum type_e {
-        number, identifer, keyword, symbol, eof, str
-    } type;
+    enum type_e { number, identifer, keyword, symbol, eof, str } type;
 
     size_t data;
 
-    token(type_e type, size_t data)
-        : type(type), data(data) {}
-    token(symbol_type data)
-        : type(symbol), data((size_t)data) {}
-    token(enum keyword k)
-        : type(keyword), data((size_t)k) {}
+    token(type_e type, size_t data) : type(type), data(data) {}
 
-    inline bool is_number() const {
-        return type == number;
-    }
-    inline bool is_id() const {
-        return type == identifer;
-    }
-    inline bool is_symbol(symbol_type t) const {
-        return type == symbol && data == (size_t)t;
-    }
-    inline bool is_keyword(enum keyword k) const {
-        return type == keyword && data == (size_t)k;
-    }
-    inline bool is_eof() const {
-        return type == eof;
-    }
-    inline bool is_str() const {
-        return type == str;
-    }
+    token(symbol_type data) : type(symbol), data((size_t)data) {}
+
+    token(enum keyword k) : type(keyword), data((size_t)k) {}
+
+    inline bool is_number() const { return type == number; }
+
+    inline bool is_id() const { return type == identifer; }
+
+    inline bool is_symbol(symbol_type t) const { return type == symbol && data == (size_t)t; }
+
+    inline bool is_keyword(enum keyword k) const { return type == keyword && data == (size_t)k; }
+
+    inline bool is_eof() const { return type == eof; }
+
+    inline bool is_str() const { return type == str; }
 };
 
-
 class tokenizer {
-public:
+  public:
     std::vector<std::string> identifiers;
     std::vector<std::string> string_literals;
-    size_t line_number;
-private:
-    std::istream* _in;
+    size_t                   line_number;
+
+  private:
+    std::istream*        _in;
     std::optional<token> next_token;
 
-    token next_in_stream();
+    token                next_in_stream();
     std::optional<token> parse_symbol(char ch);
-    token parse_num(char ch);
-    token parse_str(char ch);
-    token parse_id(char ch);
-public:
+    token                parse_num(char ch);
+    token                parse_str(char ch);
+    token                parse_id(char ch);
 
-    tokenizer(std::istream* input) : line_number(0), _in(input) { }
+  public:
+    tokenizer(std::istream* input) : line_number(0), _in(input) {}
 
     void reset(std::istream* input) {
-        _in = input;
+        _in         = input;
         line_number = 0;
-        next_token = std::optional<token>();
+        next_token  = std::optional<token>();
     }
 
     token next() {
-        if (this->next_token.has_value()) {
+        if(this->next_token.has_value()) {
             auto tok = this->next_token.value();
             this->next_token.reset();
             return tok;
@@ -94,12 +90,7 @@ public:
     }
 
     const token& peek() {
-        if (!this->next_token.has_value()) {
-            next_token = this->next_in_stream();
-        }
+        if(!this->next_token.has_value()) next_token = this->next_in_stream();
         return this->next_token.value();
     }
-
 };
-
-
