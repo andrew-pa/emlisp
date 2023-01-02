@@ -90,12 +90,17 @@ struct method {
     id                                                   name;
     std::shared_ptr<cpptype>                             return_type;
     std::vector<std::pair<std::shared_ptr<cpptype>, id>> args;
+    bool with_cx;
 
-    method(id name, std::shared_ptr<cpptype> return_type)
-        : name(name), return_type(std::move(return_type)) {}
+    method(id name, std::shared_ptr<cpptype> return_type, bool with_cx)
+        : name(name), return_type(std::move(return_type)), with_cx(with_cx) {}
 
     std::ostream& print(std::ostream& out, const tokenizer& toks) const {
-        out << "M " << toks.identifiers[name] << "(";
+        out << "M ";
+        if(with_cx) {
+            out << "+X ";
+        }
+        out << toks.identifiers[name] << "(";
         for(const auto& [ty, nm] : args) {
             out << toks.identifiers[nm] << ": ";
             ty->print(out, toks) << ", ";

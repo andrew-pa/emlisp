@@ -72,6 +72,7 @@ const std::map<std::string_view, keyword> keywords = {
     {"EL_OBJ",  keyword::el_obj   },
     {"EL_PROP", keyword::el_prop  },
     {"EL_M",    keyword::el_m     },
+    {"EL_WITH_CX", keyword::el_with_cx },
     {"r",       keyword::read     },
     {"rw",      keyword::readwrite},
 };

@@ -71,12 +71,18 @@ property parser::parse_property() {
 }
 
 method parser::parse_method() {
+    bool with_cx = false;
+    if(toks.peek().is_keyword(keyword::el_with_cx)) {
+        toks.next();
+        with_cx = true;
+    }
+
     auto ret_ty = parse_type();
 
     token tk = toks.next();
     if(!tk.is_id()) throw parse_error(tk, toks.line_number, "expected name of method");
 
-    auto m = method{tk.data, ret_ty};
+    auto m = method{tk.data, ret_ty, with_cx};
 
     check_next_symbol(symbol_type::open_paren, "expected (");
     tk = toks.peek();

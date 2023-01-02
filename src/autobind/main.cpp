@@ -259,6 +259,14 @@ struct generate_visitor {
             std::vector<std::string> arg_vals;
             size_t                   i = 1;
             for(const auto& [ty, nm] : m.args) {
+                if(i == 1 && m.with_cx) {
+                    std::ostringstream oss;
+                    oss << "(";
+                    ty->print(oss, toks);
+                    oss << ")cx";
+                    arg_vals.push_back(oss.str());
+                    continue;
+                }
                 auto lisp_arg = gen.get_arg(i++);
                 arg_vals.push_back(gen.lisp_to_cpp(lisp_arg, ty));
             }

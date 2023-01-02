@@ -33,4 +33,8 @@ EL_OBJ struct counter {
         std::cout << "counter = " << value << "!\n";
         return value;
     }
+
+    EL_M EL_WITH_CX void test_context(int* cx) {
+        *cx = value;
+    }
 };

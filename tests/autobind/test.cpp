@@ -7,7 +7,8 @@ void add_bindings(runtime* rt, void* cx);
 
 int main(int argc, char* argv[]) {
     emlisp::runtime rt{ 1024*1024 };
-    add_bindings(&rt, nullptr);
+    int cx = 0;
+    add_bindings(&rt, (void*)&cx);
 
     counter c {
         .value = 10
@@ -37,6 +38,10 @@ int main(int argc, char* argv[]) {
         {value x = rt.eval(rt.read("(counter/increment c 1)"));
             assert(c.value == 2);
             assert(to_int(x) == 2);}
+
+        std::cout << "testcx/2\n";
+        {rt.eval(rt.read("(counter/test-context c)"));
+            assert(cx == 2);}
     } catch(emlisp::type_mismatch_error e) {
         std::cout << "error: " << e.what() << "; actual = " << e.actual << ", expected = " << e.expected << "\n";
         exit(3);
