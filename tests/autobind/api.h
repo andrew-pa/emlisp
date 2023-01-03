@@ -18,6 +18,7 @@ EL_OBJ struct test_simple_method {
     EL_M void hop(int* amount) {}
     EL_M void skirt(int* amount, char x) {}
     EL_M size_t* jump(bool yeet) {return nullptr;}
+    EL_M int test(std::shared_ptr<int> x) { return *x; }
 };
 
 EL_OBJ struct counter {

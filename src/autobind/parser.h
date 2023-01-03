@@ -35,8 +35,10 @@ struct template_instance : public cpptype {
 
     std::ostream& print(std::ostream& out, const tokenizer& toks) const override {
         out << toks.identifiers[name] << "<";
-        for(const auto& t : args)
-            t->print(out, toks) << ", ";
+        for(size_t i = 0; i < args.size(); ++i) {
+            args[i]->print(out, toks);
+            if(i < args.size() - 1) out << ", ";
+        }
         return out << ">";
     }
 };

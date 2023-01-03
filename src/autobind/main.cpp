@@ -108,44 +108,22 @@ struct code_generator {
                 out << "to_bool(" << lisp_value << ");\n";
             else if(toks.identifiers[pt->name] == "std::string")
                 out << "rt->to_str(" << lisp_value << ");\n";
-            else if(toks.identifiers[pt->name] == "vec2")
-                throw 3;
-            return tmp;
-        }
-
-        auto rt = std::dynamic_pointer_cast<ptr_type>(type);
-        if(rt != nullptr) {
-            out << "rt->get_extern_reference<";
-            rt->deref->print(out, toks);
-            out << ">(" << lisp_value << ");\n";
             return tmp;
         }
 
         auto tt = std::dynamic_pointer_cast<template_instance>(type);
         if(tt != nullptr) {
             const auto& name = toks.identifiers[tt->name];
-            if(name == "std::shared_ptr" || name == "std::unique_ptr") {
-                // TODO: WARN: this is unsafe esp with shared_ptr, but probably good enough for
-                // eggv, since most of the time the C++ object will live longer than the Lisp
-                // reference to it
-                out << name << "<";
-                tt->args.at(0)->print(out, toks);
-                out << ">(rt->get_extern_reference<";
-                tt->args.at(0)->print(out, toks);
-                out << ">(" << lisp_value << "));\n";
-            } else if(name == "std::vector") {
+            if(name == "std::vector") {
                 out << "rt->to_vec(" << lisp_value << ");\n";
-            } else {
-                throw std::runtime_error("can't translate template " + name + " from lisp value");
+                return tmp;
             }
-            return tmp;
         }
 
-        std::ostringstream oss;
-        oss << "failed to generate code to translate a Lisp value to C++ type ";
+        out << "*rt->get_extern_reference<";
         type->print(out, toks);
-        oss << " (input temporary name:" << lisp_value << ")";
-        throw std::runtime_error(oss.str());
+        out << ">(" << lisp_value << ");\n";
+        return tmp;
     }
 
     std::string cpp_to_lisp(const std::string& cpp_value, const std::shared_ptr<cpptype>& type) {
@@ -161,42 +139,22 @@ struct code_generator {
                 out << "rt->from_bool(" << cpp_value << ");\n";
             else if(toks.identifiers[pt->name] == "std::string")
                 out << "rt->from_str(" << cpp_value << ");\n";
-            else if(toks.identifiers[pt->name] == "vec2")
-                throw 3;
-            return tmp;
-        }
-
-        auto rt = std::dynamic_pointer_cast<ptr_type>(type);
-        if(rt != nullptr) {
-            out << "rt->make_extern_reference<";
-            rt->deref->print(out, toks);
-            out << ">(" << cpp_value << ");\n";
             return tmp;
         }
 
         auto tt = std::dynamic_pointer_cast<template_instance>(type);
         if(tt != nullptr) {
             const auto& name = toks.identifiers[tt->name];
-            if(name == "std::shared_ptr" || name == "std::unique_ptr") {
-                // TODO: WARN: this is unsafe esp with shared_ptr, but probably good enough for
-                // eggv, since most of the time the C++ object will live longer than the Lisp
-                // reference to it
-                out << "rt->make_extern_reference<";
-                tt->args.at(0)->print(out, toks);
-                out << ">(" << cpp_value << ".get());\n";
-            } else if(name == "std::vector") {
+            if(name == "std::vector") {
                 out << "rt->from_vec(" << cpp_value << ");\n";
-            } else {
-                throw std::runtime_error("can't translate template " + name + " to lisp value");
+                return tmp;
             }
-            return tmp;
         }
 
-        std::ostringstream oss;
-        oss << "failed to generate code to translate C++ type ";
+        out << "rt->make_owned_extern<";
         type->print(out, toks);
-        oss << " to a Lisp value (input temporary name:" << cpp_value << ")";
-        throw std::runtime_error(oss.str());
+        out << ">(" << cpp_value << ");\n";
+        return tmp;
     }
 
     void return_from_fn(const std::string& val = "NIL") { out << "return " << val << ";\n"; }
