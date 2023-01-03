@@ -195,7 +195,7 @@ std::ostream& operator<<(std::ostream& os, value_type vt) {
            "?",
            "?",
            "?",
-           "?",
+           "extern",
            "closure",
            "cons"};
     return os << (names[(size_t)vt]);

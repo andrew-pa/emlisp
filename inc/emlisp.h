@@ -204,7 +204,7 @@ class runtime {
 
     template<typename T>
     T* get_extern_reference(value v) {
-        assert(type_of(v) == value_type::_extern);
+        check_type(v, value_type::_extern);
         v = (v & ~0xf) | (value)value_type::cons;
         if(typeid(T).hash_code() != second(v))
             throw std::runtime_error(

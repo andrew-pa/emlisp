@@ -99,16 +99,32 @@ struct code_generator {
         out << "auto " << tmp << " = ";
 
         auto pt = std::dynamic_pointer_cast<plain_type>(type);
+        if(pt == nullptr) {
+            // const T& is basically a value type
+            auto ct = std::dynamic_pointer_cast<const_type>(type);
+            if(ct != nullptr) {
+                auto rt = std::dynamic_pointer_cast<ref_type>(ct->underlying);
+                pt      = std::dynamic_pointer_cast<plain_type>(rt->deref);
+            }
+        }
         if(pt != nullptr) {
-            if(intlike_types.find(toks.identifiers[pt->name]) != intlike_types.end())
+            if(intlike_types.find(toks.identifiers[pt->name]) != intlike_types.end()) {
                 out << "to_int(" << lisp_value << ");\n";
-            else if(floatlike_types.find(toks.identifiers[pt->name]) != floatlike_types.end())
+                return tmp;
+            }
+            if(floatlike_types.find(toks.identifiers[pt->name]) != floatlike_types.end()) {
                 out << "to_float(" << lisp_value << ");\n";
-            else if(toks.identifiers[pt->name] == "bool")
+                return tmp;
+            }
+            if(toks.identifiers[pt->name] == "bool") {
                 out << "to_bool(" << lisp_value << ");\n";
-            else if(toks.identifiers[pt->name] == "std::string")
+                return tmp;
+            }
+            if(toks.identifiers[pt->name] == "std::string"
+               || toks.identifiers[pt->name] == "std::string_view") {
                 out << "rt->to_str(" << lisp_value << ");\n";
-            return tmp;
+                return tmp;
+            }
         }
 
         auto tt = std::dynamic_pointer_cast<template_instance>(type);
@@ -128,25 +144,39 @@ struct code_generator {
 
     std::string cpp_to_lisp(const std::string& cpp_value, const std::shared_ptr<cpptype>& type) {
         auto tmp = new_tmp_var();
-        out << "auto " << tmp << " = ";
-        auto pt = std::dynamic_pointer_cast<plain_type>(type);
-        if(pt != nullptr) {
-            if(intlike_types.find(toks.identifiers[pt->name]) != intlike_types.end())
-                out << "rt->from_int(" << cpp_value << ");\n";
-            else if(floatlike_types.find(toks.identifiers[pt->name]) != floatlike_types.end())
-                out << "rt->from_float(" << cpp_value << ");\n";
-            else if(toks.identifiers[pt->name] == "bool")
-                out << "rt->from_bool(" << cpp_value << ");\n";
-            else if(toks.identifiers[pt->name] == "std::string")
-                out << "rt->from_str(" << cpp_value << ");\n";
-            return tmp;
-        }
 
         auto tt = std::dynamic_pointer_cast<template_instance>(type);
         if(tt != nullptr) {
             const auto& name = toks.identifiers[tt->name];
             if(name == "std::vector") {
-                out << "rt->from_vec(" << cpp_value << ");\n";
+                auto tmp_vec = new_tmp_var();
+                out << "std::vector<value> " << tmp_vec << ";\n";
+                out << "for(const auto& x : " << cpp_value << "){\n";
+                auto lisp_val = cpp_to_lisp("x", tt->args.at(0));
+                out << tmp_vec << ".push_back(" << lisp_val << ");}\n";
+                out << "auto " << tmp << " = rt->from_vec(" << tmp_vec << ");\n";
+                return tmp;
+            }
+        }
+
+        out << "auto " << tmp << " = ";
+        auto pt = std::dynamic_pointer_cast<plain_type>(type);
+        if(pt != nullptr) {
+            if(intlike_types.find(toks.identifiers[pt->name]) != intlike_types.end()) {
+                out << "rt->from_int(" << cpp_value << ");\n";
+                return tmp;
+            }
+            if(floatlike_types.find(toks.identifiers[pt->name]) != floatlike_types.end()) {
+                out << "rt->from_float(" << cpp_value << ");\n";
+                return tmp;
+            }
+            if(toks.identifiers[pt->name] == "bool") {
+                out << "rt->from_bool(" << cpp_value << ");\n";
+                return tmp;
+            }
+            if(toks.identifiers[pt->name] == "std::string"
+               || toks.identifiers[pt->name] == "std::string_view") {
+                out << "rt->from_str(" << cpp_value << ");\n";
                 return tmp;
             }
         }
