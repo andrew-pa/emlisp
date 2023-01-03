@@ -99,43 +99,20 @@ const std::string& runtime::symbol_str(value sym) const {
 }
 
 struct gc_state {
+    runtime*                          rt;
     std::unordered_map<value, value>& live_vals;
     uint8_t*&                         new_next;
     std::unordered_set<size_t>        old_owned_externs, new_owned_externs;
     uint8_t*                          gc_copy_limit;
-};
 
-#define GC_LOG
-
-void runtime::gc_process(value& c, gc_state& st) {
-    auto ty = type_of(c);
-    // only proceed if the value is on the heap
-    if(!(ty == value_type::cons || ty == value_type::closure || ty == value_type::_extern
-         || ty == value_type::str || ty == value_type::fvec))
-        return;
-
-    auto old_c = c;
-    // check to see if we've already processed this value
-    auto existing_copy = st.live_vals.find(c);
-    if(existing_copy != st.live_vals.end()) {
-        c = existing_copy->second;
-        return;
-    }
-
-#ifdef GC_LOG
-    std::cout << "collecting ";
-    this->write(std::cout, c);
-    std::cout << " @ " << std::hex << c << std::dec << "\n";
-#endif
-
-    // copy the value itself
-    if(ty == value_type::cons || ty == value_type::closure || ty == value_type::_extern) {
-        auto new_addr   = ((uint64_t)(st.new_next) << 4) | (uint64_t)ty;
-        st.live_vals[c] = new_addr;
-        memcpy((void*)st.new_next, (void*)(c >> 4), sizeof(value) * 2);
+  private:
+    inline void copy_conslike(value& c, value_type ty) {
+        auto new_addr = ((uint64_t)(new_next) << 4) | (uint64_t)ty;
+        live_vals[c]  = new_addr;
+        memcpy((void*)new_next, (void*)(c >> 4), sizeof(value) * 2);
         c = new_addr;
-        st.new_next += 2 * sizeof(value);
-        if(st.new_next > st.gc_copy_limit) {
+        new_next += 2 * sizeof(value);
+        if(new_next > gc_copy_limit) {
 #ifdef GC_LOG
             std::cout << "!!! copying cons/closure/extern value " << ty << " " << std::hex << c
                       << std::dec << "\n\t";
@@ -144,27 +121,31 @@ void runtime::gc_process(value& c, gc_state& st) {
 #endif
             throw std::runtime_error("garbage collector has allocated more than the previous heap");
         }
-    } else if(ty == value_type::str) {
+    }
+
+    inline void copy_str(value& c, value old_c) {
         uint32_t* p   = (uint32_t*)(c >> 4);
         uint32_t  len = *p;
-        memcpy(st.new_next, p, len + sizeof(uint32_t));
-        c                   = (((uint64_t)st.new_next) << 4) | (uint64_t)value_type::str;
-        st.live_vals[old_c] = c;
-        st.new_next += len + sizeof(uint32_t);
-        if(st.new_next > st.gc_copy_limit) {
+        memcpy(new_next, p, len + sizeof(uint32_t));
+        c = (((uint64_t)new_next) << 4) | (uint64_t)value_type::str;
+        new_next += len + sizeof(uint32_t);
+        live_vals[old_c] = c;
+        if(new_next > gc_copy_limit) {
 #ifdef GC_LOG
             std::cout << "!!! copying string\n";
 #endif
             throw std::runtime_error("garbage collector has allocated more than the previous heap");
         }
-    } else if(ty == value_type::fvec) {
+    }
+
+    inline void copy_fvec(value& c, value old_c) {
         uint32_t* p   = (uint32_t*)(c >> 4);
         uint32_t  len = *p;
-        memcpy(st.new_next, p, len * sizeof(float) + sizeof(uint32_t));
-        c                   = (((uint64_t)st.new_next) << 4) | (uint64_t)value_type::fvec;
-        st.live_vals[old_c] = c;
-        st.new_next += len * sizeof(float) + sizeof(uint32_t);
-        if(st.new_next > st.gc_copy_limit) {
+        memcpy(new_next, p, len * sizeof(float) + sizeof(uint32_t));
+        c = (((uint64_t)new_next) << 4) | (uint64_t)value_type::fvec;
+        new_next += len * sizeof(float) + sizeof(uint32_t);
+        live_vals[old_c] = c;
+        if(new_next > gc_copy_limit) {
 #ifdef GC_LOG
             std::cout << "!!! copying fvec\n";
 #endif
@@ -172,17 +153,13 @@ void runtime::gc_process(value& c, gc_state& st) {
         }
     }
 
-    // recursively process any internal references
-    if(ty == value_type::cons) {
-        gc_process(first(c), st);
-        gc_process(second(c), st);
-    } else if(ty == value_type::closure) {
+    inline void process_closure_internals(value c, value old_c) {
         function* fn = (function*)(*(uint64_t*)(c >> 4) >> 4);
-        gc_process(fn->body, st);
+        process(fn->body);
         auto old_frv = *((value*)(c >> 4) + 1);
 
-        auto exi_fr = st.live_vals.find(old_frv);
-        if(exi_fr != st.live_vals.end()) {
+        auto exi_fr = live_vals.find(old_frv);
+        if(exi_fr != live_vals.end()) {
 #ifdef GC_LOG
             std::cout << "\tframe already collected\n";
 #endif
@@ -191,9 +168,9 @@ void runtime::gc_process(value& c, gc_state& st) {
         }
 
         auto* fr     = (frame*)(old_frv >> 4);
-        auto* new_fr = (frame*)st.new_next;
-        st.new_next += sizeof(frame);
-        if(st.new_next > st.gc_copy_limit) {
+        auto* new_fr = (frame*)new_next;
+        new_next += sizeof(frame);
+        if(new_next > gc_copy_limit) {
 #ifdef GC_LOG
             std::cout << "!!! copying frame\n";
 #endif
@@ -203,7 +180,7 @@ void runtime::gc_process(value& c, gc_state& st) {
         // memcpy(new_fr, fr, sizeof(frame));
         auto new_frv = (value)((((uint64_t)new_fr) << 4) | (uint64_t)value_type::_extern);
         *((value*)(c >> 4) + 1) = new_frv;
-        st.live_vals[old_frv]   = new_frv;
+        live_vals[old_frv]      = new_frv;
 
         for(auto& [name, val] : new_fr->data) {
             if(val == old_c) {  // this is sus?
@@ -215,27 +192,70 @@ void runtime::gc_process(value& c, gc_state& st) {
             this->write(std::cout, val);
             std::cout << "\n";
 #endif
-            gc_process(val, st);
+            process(val);
         }
-    } else if(ty == value_type::_extern) {
+    }
+
+    inline void process_owned_extern(value c) {
         void* p = *(void**)(c >> 4);
-        if(p >= heap && p < heap + heap_size) {
+        if(p >= rt->heap && p < rt->heap + rt->heap_size) {
             // we own this value
             auto* h = (owned_extern_header*)((char*)p - sizeof(owned_extern_header));
 #ifdef GC_LOG
             std::cout << "\tmoving C++ type, size = " << h->size << "\n";
 #endif
-            auto* t = st.new_next + sizeof(owned_extern_header);
-            st.old_owned_externs.erase((size_t)p);
-            st.new_owned_externs.insert((size_t)t);
-            *(void**)(c >> 4) = t;
-            // memcpy(st.new_next, h, h->size);
-            *((owned_extern_header*)st.new_next) = *h;
+            auto* t = new_next + sizeof(owned_extern_header);
+            old_owned_externs.erase((size_t)p);
+            new_owned_externs.insert((size_t)t);
+            *(void**)(c >> 4)                 = t;
+            *((owned_extern_header*)new_next) = *h;
             h->move(t, p);
-            st.new_next += h->size;
+            new_next += h->size;
         }
     }
-}
+
+  public:
+    void process(value& c) {
+        auto ty = type_of(c);
+        // only proceed if the value is on the heap
+        if(!(ty == value_type::cons || ty == value_type::closure || ty == value_type::_extern
+             || ty == value_type::str || ty == value_type::fvec))
+            return;
+
+        auto old_c = c;
+
+        // check to see if we've already processed this value
+        auto existing_copy = live_vals.find(c);
+        if(existing_copy != live_vals.end()) {
+            c = existing_copy->second;
+            return;
+        }
+
+#ifdef GC_LOG
+        std::cout << "collecting ";
+        this->write(std::cout, c);
+        std::cout << " @ " << std::hex << c << std::dec << "\n";
+#endif
+
+        // copy the value itself to the new heap, replacing c so it points to the new heap
+        if(ty == value_type::cons || ty == value_type::closure || ty == value_type::_extern)
+            copy_conslike(c, ty);
+        else if(ty == value_type::str)
+            copy_str(c, old_c);
+        else if(ty == value_type::fvec)
+            copy_fvec(c, old_c);
+
+        // recursively process any internal references for compound structures
+        if(ty == value_type::cons) {
+            process(first(c));
+            process(second(c));
+        } else if(ty == value_type::closure) {
+            process_closure_internals(c, old_c);
+        } else if(ty == value_type::_extern) {
+            process_owned_extern(c);
+        }
+    }
+};
 
 void runtime::collect_garbage(heap_info* res_info) {
     std::unordered_map<value, value> live_vals;
@@ -245,6 +265,7 @@ void runtime::collect_garbage(heap_info* res_info) {
     auto* new_heap_next = new_heap;
 
     gc_state st{
+        .rt                = this,
         .live_vals         = live_vals,
         .new_next          = new_heap_next,
         .old_owned_externs = owned_externs,
@@ -253,10 +274,10 @@ void runtime::collect_garbage(heap_info* res_info) {
 
     for(auto& sc : scopes)
         for(auto& [name, val] : sc)
-            gc_process(val, st);
+            st.process(val);
 
     for(auto& p : value_handles)
-        gc_process(p.second.first, st);
+        st.process(p.second.first);
 
     if(res_info != nullptr) {
         res_info->old_size = heap_next - heap;

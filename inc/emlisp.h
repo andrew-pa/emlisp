@@ -142,7 +142,7 @@ class runtime {
 
     frame* alloc_frame();
 
-    void gc_process(value& c, struct gc_state& st);
+    friend struct gc_state;
 
     std::unordered_map<uint64_t, std::pair<value, uint64_t>> value_handles;
     uint64_t                                                 next_extern_value_handle;
