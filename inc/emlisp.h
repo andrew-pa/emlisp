@@ -19,7 +19,6 @@ enum class value_type {
     float_t = 0x3,
     sym     = 0x4,
     str     = 0x5,
-    fvec    = 0x6,
     _extern = 0xd,
     closure = 0xe,
     cons    = 0xf
@@ -167,9 +166,6 @@ class runtime {
 
     value            from_str(std::string_view s);
     std::string_view to_str(value v);
-
-    value                       from_fvec(uint32_t size, const float* v);
-    std::pair<uint32_t, float*> to_fvec(value v);
 
     value              symbol(std::string_view s);
     const std::string& symbol_str(value sym) const;

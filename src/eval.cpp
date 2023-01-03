@@ -395,8 +395,7 @@ value runtime::eval(value x) {
             case value_type::bool_t:
             case value_type::int_t:
             case value_type::float_t:
-            case value_type::str:
-            case value_type::fvec: result = x; break;
+            case value_type::str: result = x; break;
 
             case value_type::sym: result = look_up(x); break;
 

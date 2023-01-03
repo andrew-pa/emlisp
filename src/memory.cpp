@@ -37,22 +37,6 @@ std::string_view runtime::to_str(value v) {
     return {data, length};
 }
 
-value runtime::from_fvec(uint32_t size, const float* src_v) {
-    if(heap_next - heap > heap_size) throw std::runtime_error("out of memory");
-    auto* v = (uint32_t*)heap_next;
-    heap_next += size * sizeof(float) + sizeof(uint32_t);
-    memcpy(v + 1, src_v, sizeof(float) * size);
-    *v = size;
-    return (((uint64_t)v) << 4) | (uint64_t)value_type::fvec;
-}
-
-std::pair<uint32_t, float*> runtime::to_fvec(value v) {
-    check_type(v, value_type::fvec, "get fvec from value");
-    auto length = *(uint32_t*)(v >> 4);
-    auto data   = (float*)((v >> 4) + sizeof(uint32_t));
-    return {length, data};
-}
-
 value runtime::from_vec(const std::vector<value>& vec) {
     value n = NIL;
     for(auto i = vec.rbegin(); i != vec.rend(); ++i)
@@ -138,21 +122,6 @@ struct gc_state {
         }
     }
 
-    inline void copy_fvec(value& c, value old_c) {
-        uint32_t* p   = (uint32_t*)(c >> 4);
-        uint32_t  len = *p;
-        memcpy(new_next, p, len * sizeof(float) + sizeof(uint32_t));
-        c = (((uint64_t)new_next) << 4) | (uint64_t)value_type::fvec;
-        new_next += len * sizeof(float) + sizeof(uint32_t);
-        live_vals[old_c] = c;
-        if(new_next > gc_copy_limit) {
-#ifdef GC_LOG
-            std::cout << "!!! copying fvec\n";
-#endif
-            throw std::runtime_error("garbage collector has allocated more than the previous heap");
-        }
-    }
-
     inline void process_closure_internals(value c, value old_c) {
         function* fn = (function*)(*(uint64_t*)(c >> 4) >> 4);
         process(fn->body);
@@ -219,7 +188,7 @@ struct gc_state {
         auto ty = type_of(c);
         // only proceed if the value is on the heap
         if(!(ty == value_type::cons || ty == value_type::closure || ty == value_type::_extern
-             || ty == value_type::str || ty == value_type::fvec))
+             || ty == value_type::str))
             return;
 
         auto old_c = c;
@@ -242,8 +211,6 @@ struct gc_state {
             copy_conslike(c, ty);
         else if(ty == value_type::str)
             copy_str(c, old_c);
-        else if(ty == value_type::fvec)
-            copy_fvec(c, old_c);
 
         // recursively process any internal references for compound structures
         if(ty == value_type::cons) {

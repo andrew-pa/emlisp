@@ -86,25 +86,25 @@ value runtime::parse_value(std::string_view src, size_t& i, bool quasimode) {
                 i++;
                 return NIL;
             }
-            if(src[i] == 'v') {
-                i++;
-                if(src[i++] != '(') throw std::runtime_error("unknown #v");
-                std::vector<float> vals;
-                while(i < src.size() && src[i] != ')') {
-                    if(std::isspace(src[i]) != 0) {
-                        i++;
-                        continue;
-                    }
-                    size_t start = i;
-                    if(src[i] == '-') i++;
-                    while(i < src.size() && (std::isdigit(src[i]) != 0 || src[i] == '.'))
-                        i++;
-                    auto v = (float)std::atof(src.data() + start);
-                    vals.push_back(v);
-                }
-                i++;
-                return this->from_fvec(vals.size(), vals.data());
-            }
+            // if(src[i] == 'v') {
+            //     i++;
+            //     if(src[i++] != '(') throw std::runtime_error("unknown #v");
+            //     std::vector<float> vals;
+            //     while(i < src.size() && src[i] != ')') {
+            //         if(std::isspace(src[i]) != 0) {
+            //             i++;
+            //             continue;
+            //         }
+            //         size_t start = i;
+            //         if(src[i] == '-') i++;
+            //         while(i < src.size() && (std::isdigit(src[i]) != 0 || src[i] == '.'))
+            //             i++;
+            //         auto v = (float)std::atof(src.data() + start);
+            //         vals.push_back(v);
+            //     }
+            //     i++;
+            //     return this->from_fvec(vals.size(), vals.data());
+            // }
             throw std::runtime_error("unknown #");
         } else if(src[i] == ';') {
             while(i < src.size() && src[i] != '\n')
@@ -146,16 +146,16 @@ std::ostream& runtime::write(std::ostream& os, value v) {
         case value_type::str: {
             os << '"' << to_str(v) << '"';
         } break;
-        case value_type::fvec: {
-            auto len  = *((uint32_t*)(v >> 4));
-            auto data = (float*)((v >> 4) + sizeof(uint32_t));
-            os << "#v(";
-            for(auto i = 0; i < len; ++i) {
-                os << data[i];
-                if(i < len - 1) os << " ";
-            }
-            os << ")";
-        } break;
+        // case value_type::fvec: {
+        //     auto len  = *((uint32_t*)(v >> 4));
+        //     auto data = (float*)((v >> 4) + sizeof(uint32_t));
+        //     os << "#v(";
+        //     for(auto i = 0; i < len; ++i) {
+        //         os << data[i];
+        //         if(i < len - 1) os << " ";
+        //     }
+        //     os << ")";
+        // } break;
         case value_type::cons: {
             os << "(";
             write(os, first(v));

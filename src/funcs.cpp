@@ -71,20 +71,6 @@ void runtime::define_intrinsics() {
             }                                                                                      \
             return rt->from_float(result);                                                         \
         }                                                                                          \
-        if(ty == value_type::fvec) {                                                               \
-            auto result_val               = first(args);                                           \
-            auto [result_len, result_ptr] = rt->to_fvec(result_val);                               \
-            args                          = second(args);                                          \
-            while(args != NIL) {                                                                   \
-                auto [x_len, x_ptr] = rt->to_fvec(first(args));                                    \
-                if(result_len != x_len)                                                            \
-                    throw std::runtime_error("fvec " NAME " arguments must have same length");     \
-                for(auto i = 0; i < result_len; ++i)                                               \
-                    result_ptr[i] OP x_ptr[i];                                                     \
-                args = second(args);                                                               \
-            }                                                                                      \
-            return result_val;                                                                     \
-        }                                                                                          \
         throw std::runtime_error("expected numerical type to math " NAME);                         \
     })
 
@@ -128,29 +114,6 @@ void runtime::define_intrinsics() {
         return rt->from_float(std::log(to_float(first(args))));
     });
 
-    // fvec //
-    define_fn("fvec", [](runtime* rt, value args, void* d) {
-        float  temp[16];
-        size_t i = 0;
-        while(args != NIL && i < 16) {
-            temp[i++] = to_float(first(args));
-            args      = second(args);
-        }
-        return rt->from_fvec(i, temp);
-    });
-
-    define_fn("fvec-ref", [](runtime* rt, value args, void* d) {
-        auto index = to_int(first(second(args)));
-        return rt->from_float(rt->to_fvec(first(args)).second[index]);
-    });
-
-    define_fn("fvec-set", [](runtime* rt, value args, void* d) {
-        auto index                             = to_int(first(second(args)));
-        auto value                             = to_float(first(second(second(args))));
-        rt->to_fvec(first(args)).second[index] = value;
-        return NIL;
-    });
-
     // string //
     define_fn("string-length", [](runtime* rt, value args, void* d) {
         value v = first(args);
@@ -168,16 +131,5 @@ void runtime::define_intrinsics() {
     });
 }
 
-void runtime::define_std_functions() {
-    define_fn("dot", [](runtime* rt, value args, void* d) {
-        auto [a_len, a_ptr] = rt->to_fvec(first(args));
-        auto [b_len, b_ptr] = rt->to_fvec(first(second(args)));
-        if(a_len != b_len)
-            throw std::runtime_error("fvec dot product must have equal length arguments");
-        float result = 0;
-        for(uint32_t i = 0; i < a_len; ++i)
-            result += a_ptr[i] * b_ptr[i];
-        return rt->from_float(result);
-    });
-}
+void runtime::define_std_functions() {}
 }  // namespace emlisp
