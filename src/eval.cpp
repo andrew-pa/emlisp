@@ -203,10 +203,10 @@ value runtime::apply(value f, value arguments) {
         symbols.push_back(symbols[name >> 4]);
         return sym;
     } else if(f == sym_let) {
-        value                  bindings = first(arguments);
-        value                  body     = first(second(arguments));
+        value                            bindings = first(arguments);
+        value                            body     = first(second(arguments));
         std::unordered_map<value, value> scope;
-        value                  bc = bindings;
+        value                            bc = bindings;
         while(bc != NIL) {
             value name = first(first(bc));
             value val  = first(second(first(bc)));
@@ -232,10 +232,10 @@ value runtime::apply(value f, value arguments) {
         result = eval(body);
         scopes.pop_back();
     } else if(f == sym_letrec) {
-        value                  bindings = first(arguments);
-        value                  body     = first(second(arguments));
+        value                            bindings = first(arguments);
+        value                            body     = first(second(arguments));
         std::unordered_map<value, value> scope;
-        value                  bc = bindings;
+        value                            bc = bindings;
         while(bc != NIL) {
             value name = first(first(bc));
             check_type(name, value_type::sym, "letrec binding name must be symbol");
@@ -344,9 +344,9 @@ value runtime::apply(value f, value arguments) {
             function* fn = (function*)(*(uint64_t*)(fv >> 4) >> 4);
             // std::cout << "calling funtion " << std::hex << fn << std::dec << "/" <<
             // fn->arguments.size() << "\n\tbody = "; this->write(std::cout, fn->body) << "\n";
-            frame*                 closure = (frame*)(*((uint64_t*)(fv >> 4) + 1) >> 4);
+            frame*                           closure = (frame*)(*((uint64_t*)(fv >> 4) + 1) >> 4);
             std::unordered_map<value, value> fr;
-            value                  args = arguments;
+            value                            args = arguments;
             for(size_t i = 0; i < fn->arguments.size(); ++i) {
                 if(args == NIL) throw std::runtime_error("argument count mismatch");
                 auto arg = fn->arguments[i];
@@ -440,7 +440,7 @@ value runtime::expand(value v) {
     if(type_of(first(v)) == value_type::sym) {
         auto mc = macros.find(first(v));
         if(mc != macros.end()) {
-            auto                   fn = mc->second;
+            auto                             fn = mc->second;
             std::unordered_map<value, value> arguments;
             if(fn->varadic) {
                 arguments[fn->arguments[0]] = second(v);

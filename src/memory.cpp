@@ -100,9 +100,9 @@ const std::string& runtime::symbol_str(value sym) const {
 
 struct gc_state {
     std::unordered_map<value, value>& live_vals;
-    uint8_t*& new_next;
-    std::unordered_set<size_t> old_owned_externs, new_owned_externs;
-    uint8_t* gc_copy_limit;
+    uint8_t*&                         new_next;
+    std::unordered_set<size_t>        old_owned_externs, new_owned_externs;
+    uint8_t*                          gc_copy_limit;
 };
 
 #define GC_LOG
@@ -130,8 +130,8 @@ void runtime::gc_process(value& c, gc_state& st) {
 
     // copy the value itself
     if(ty == value_type::cons || ty == value_type::closure || ty == value_type::_extern) {
-        auto new_addr = ((uint64_t)(st.new_next) << 4) | (uint64_t)ty;
-        st.live_vals[c]  = new_addr;
+        auto new_addr   = ((uint64_t)(st.new_next) << 4) | (uint64_t)ty;
+        st.live_vals[c] = new_addr;
         memcpy((void*)st.new_next, (void*)(c >> 4), sizeof(value) * 2);
         c = new_addr;
         st.new_next += 2 * sizeof(value);
@@ -148,7 +148,7 @@ void runtime::gc_process(value& c, gc_state& st) {
         uint32_t* p   = (uint32_t*)(c >> 4);
         uint32_t  len = *p;
         memcpy(st.new_next, p, len + sizeof(uint32_t));
-        c                = (((uint64_t)st.new_next) << 4) | (uint64_t)value_type::str;
+        c                   = (((uint64_t)st.new_next) << 4) | (uint64_t)value_type::str;
         st.live_vals[old_c] = c;
         st.new_next += len + sizeof(uint32_t);
         if(st.new_next > st.gc_copy_limit) {
@@ -161,7 +161,7 @@ void runtime::gc_process(value& c, gc_state& st) {
         uint32_t* p   = (uint32_t*)(c >> 4);
         uint32_t  len = *p;
         memcpy(st.new_next, p, len * sizeof(float) + sizeof(uint32_t));
-        c                = (((uint64_t)st.new_next) << 4) | (uint64_t)value_type::fvec;
+        c                   = (((uint64_t)st.new_next) << 4) | (uint64_t)value_type::fvec;
         st.live_vals[old_c] = c;
         st.new_next += len * sizeof(float) + sizeof(uint32_t);
         if(st.new_next > st.gc_copy_limit) {
@@ -190,7 +190,7 @@ void runtime::gc_process(value& c, gc_state& st) {
             return;
         }
 
-        auto*  fr     = (frame*)(old_frv >> 4);
+        auto* fr     = (frame*)(old_frv >> 4);
         auto* new_fr = (frame*)st.new_next;
         st.new_next += sizeof(frame);
         if(st.new_next > st.gc_copy_limit) {
@@ -203,7 +203,7 @@ void runtime::gc_process(value& c, gc_state& st) {
         // memcpy(new_fr, fr, sizeof(frame));
         auto new_frv = (value)((((uint64_t)new_fr) << 4) | (uint64_t)value_type::_extern);
         *((value*)(c >> 4) + 1) = new_frv;
-        st.live_vals[old_frv]      = new_frv;
+        st.live_vals[old_frv]   = new_frv;
 
         for(auto& [name, val] : new_fr->data) {
             if(val == old_c) {  // this is sus?
@@ -219,7 +219,7 @@ void runtime::gc_process(value& c, gc_state& st) {
         }
     } else if(ty == value_type::_extern) {
         void* p = *(void**)(c >> 4);
-        if(p >= heap && p < heap+heap_size) {
+        if(p >= heap && p < heap + heap_size) {
             // we own this value
             auto* h = (owned_extern_header*)((char*)p - sizeof(owned_extern_header));
 #ifdef GC_LOG
@@ -245,12 +245,11 @@ void runtime::collect_garbage(heap_info* res_info) {
     auto* new_heap_next = new_heap;
 
     gc_state st{
-        .live_vals = live_vals,
-        .new_next = new_heap_next,
+        .live_vals         = live_vals,
+        .new_next          = new_heap_next,
         .old_owned_externs = owned_externs,
         .new_owned_externs = {},
-        .gc_copy_limit = new_heap + (heap_next - heap)
-    };
+        .gc_copy_limit     = new_heap + (heap_next - heap)};
 
     for(auto& sc : scopes)
         for(auto& [name, val] : sc)
@@ -268,7 +267,8 @@ void runtime::collect_garbage(heap_info* res_info) {
     for(auto x : st.old_owned_externs) {
         auto* h = (owned_extern_header*)(x - sizeof(owned_extern_header));
 #ifdef GC_LOG
-        std::cout << "deconstructing value at " << std::hex << x << std::dec << " size = " << h->size << "\n";
+        std::cout << "deconstructing value at " << std::hex << x << std::dec
+                  << " size = " << h->size << "\n";
 #endif
         h->deconstructor((void*)x);
     }
@@ -279,8 +279,8 @@ void runtime::collect_garbage(heap_info* res_info) {
 #endif
 
     delete heap;
-    heap      = new_heap;
-    heap_next = new_heap_next;
+    heap          = new_heap;
+    heap_next     = new_heap_next;
     owned_externs = st.new_owned_externs;
 }
 

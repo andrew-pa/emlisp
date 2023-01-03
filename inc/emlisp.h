@@ -1,12 +1,12 @@
 #pragma once
 #include <cassert>
 #include <cstdint>
-#include <unordered_map>
-#include <unordered_set>
 #include <memory>
 #include <set>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace emlisp {
@@ -98,17 +98,18 @@ struct frame {
     void  set(value name, value val);
 };
 
-using extern_func_t = value (*)(class runtime *, value, void *);
+using extern_func_t = value (*)(class runtime*, value, void*);
 
 struct heap_info {
     size_t new_size, old_size;
 };
 
-using owned_extern_deconstructor_t = void (*)(void*);
+using owned_extern_deconstructor_t    = void (*)(void*);
 using owned_extern_move_constructor_t = void (*)(void*, void*);
+
 struct owned_extern_header {
-    uint64_t size;
-    owned_extern_deconstructor_t deconstructor;
+    uint64_t                        size;
+    owned_extern_deconstructor_t    deconstructor;
     owned_extern_move_constructor_t move;
 };
 
@@ -141,10 +142,10 @@ class runtime {
 
     frame* alloc_frame();
 
-    void     gc_process(value& c, struct gc_state& st);
+    void gc_process(value& c, struct gc_state& st);
 
     std::unordered_map<uint64_t, std::pair<value, uint64_t>> value_handles;
-    uint64_t                                       next_extern_value_handle;
+    uint64_t                                                 next_extern_value_handle;
 
     std::unordered_set<size_t> owned_externs;
 
@@ -202,9 +203,7 @@ class runtime {
     template<typename T>
     value make_extern_reference(T* ob) {
         // TODO: make this just cast the ptr in release mode and not bother with type checking
-        return (cons((value)ob, typeid(T).hash_code())
-            & ~0xf)
-            | (value)value_type::_extern;
+        return (cons((value)ob, typeid(T).hash_code()) & ~0xf) | (value)value_type::_extern;
     }
 
     template<typename T>
@@ -218,7 +217,7 @@ class runtime {
         return (T*)first(v);
     }
 
-    template<typename T, typename ...Args>
+    template<typename T, typename... Args>
     value make_owned_extern(Args... args) {
         if(heap_next - heap > heap_size) throw std::runtime_error("out of memory");
         auto* h = (owned_extern_header*)heap_next;
@@ -230,9 +229,7 @@ class runtime {
             T* s = (T*)src;
             new(d) T(std::move(*s));
         };
-        h->deconstructor = [](void* x) {
-            ((T*)x)->~T();
-        };
+        h->deconstructor = [](void* x) { ((T*)x)->~T(); };
         new(t) T(args...);
         owned_externs.insert((uint64_t)t);
         return make_extern_reference(t);
@@ -241,7 +238,7 @@ class runtime {
     template<typename T>
     T take_owned_extern(value v) {
         T* p = get_extern_reference<T>(v);
-        assert((size_t)p >= (size_t)heap && (size_t)p < (size_t)(heap+heap_size));
+        assert((size_t)p >= (size_t)heap && (size_t)p < (size_t)(heap + heap_size));
         owned_externs.erase((size_t)p);
         return std::move(*p);
     }
