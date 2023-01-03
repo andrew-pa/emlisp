@@ -17,6 +17,18 @@ struct test {
     }
 };
 
+struct thing {
+    int x;
+    int y;
+
+    thing(int x, int y) : x(x), y(y) {}
+
+    void test() {
+        x *= y;
+        y += 1;
+    }
+};
+
 int main() {
     runtime rt{1024*1024, false};
 
@@ -25,24 +37,28 @@ int main() {
     }
     assert(test_destroyed);
 
-    value lv = rt.make_owned_extern<std::vector<int>>();
-    auto* cv = rt.get_extern_reference<std::vector<int>>(lv);
+    value lv = rt.make_owned_extern<thing>(1, 1);
+    auto hv = rt.handle_for(lv);
     rt.define_global("v", lv);
 
     rt.define_fn("test", [](runtime* rt, value args, void* cx) {
-        auto* v = rt->get_extern_reference<std::vector<int>>(first(args));
-        v->push_back(v->size());
+        auto* v = rt->get_extern_reference<thing>(first(args));
+        std::cout << "Bx = " << v->x << " y = " << v->y << " v=" << std::hex << v << std::dec << "\n";
+        v->test();
+        std::cout << "Ax = " << v->x << " y = " << v->y << " v=" << std::hex << v << std::dec << "\n";
         return NIL;
     }, nullptr);
 
     rt.eval(rt.read("(test v)"));
-    assert(cv->size() == 1 && cv->at(0) == 0);
+    auto* cv = rt.get_extern_reference<thing>(*hv);
+    assert(cv->x == 1 && cv->y == 2);
 
     std::cout << "0\n";
     rt.collect_garbage();
 
     rt.eval(rt.read("(test v)"));
-    assert(cv->size() == 2 && cv->at(1) == 1);
+    cv = rt.get_extern_reference<thing>(*hv);
+    assert(cv->x == 2 && cv->y == 3);
 
     std::cout << "1\n";
     value t = rt.make_owned_extern<test>();

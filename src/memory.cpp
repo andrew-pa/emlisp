@@ -225,12 +225,14 @@ void runtime::gc_process(value& c, gc_state& st) {
 #ifdef GC_LOG
             std::cout << "\tmoving C++ type, size = " << h->size << "\n";
 #endif
+            auto* t = st.new_next + sizeof(owned_extern_header);
             st.old_owned_externs.erase((size_t)p);
-            st.new_owned_externs.insert((size_t)st.new_next);
-            *(void**)(c >> 4) = st.new_next;
-            memcpy(st.new_next, h, h->size);
+            st.new_owned_externs.insert((size_t)t);
+            *(void**)(c >> 4) = t;
+            // memcpy(st.new_next, h, h->size);
+            *((owned_extern_header*)st.new_next) = *h;
+            h->move(t, p);
             st.new_next += h->size;
-
         }
     }
 }
@@ -246,7 +248,7 @@ void runtime::collect_garbage(heap_info* res_info) {
         .live_vals = live_vals,
         .new_next = new_heap_next,
         .old_owned_externs = owned_externs,
-        .new_owned_externs = {owned_externs.bucket_count()},
+        .new_owned_externs = {},
         .gc_copy_limit = new_heap + (heap_next - heap)
     };
 
@@ -262,11 +264,6 @@ void runtime::collect_garbage(heap_info* res_info) {
         res_info->new_size = new_heap_next - new_heap;
     }
 
-#ifdef _DEBUG
-    // make it abundantly clear if we still have pointers to the old heap
-    memset(heap, 0xcdcdcdcd, heap_size);
-#endif
-
     // run deconstructors for any collected C++ values
     for(auto x : st.old_owned_externs) {
         auto* h = (owned_extern_header*)(x - sizeof(owned_extern_header));
@@ -275,6 +272,11 @@ void runtime::collect_garbage(heap_info* res_info) {
 #endif
         h->deconstructor((void*)x);
     }
+
+#ifdef _DEBUG
+    // make it abundantly clear if we still have pointers to the old heap
+    memset(heap, 0xcdcdcdcd, heap_size);
+#endif
 
     delete heap;
     heap      = new_heap;

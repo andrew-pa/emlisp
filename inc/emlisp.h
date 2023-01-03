@@ -104,10 +104,12 @@ struct heap_info {
     size_t new_size, old_size;
 };
 
-using owned_extern_deconstructor_t = void (*)(void *);
+using owned_extern_deconstructor_t = void (*)(void*);
+using owned_extern_move_constructor_t = void (*)(void*, void*);
 struct owned_extern_header {
     uint64_t size;
     owned_extern_deconstructor_t deconstructor;
+    owned_extern_move_constructor_t move;
 };
 
 class runtime {
@@ -223,6 +225,11 @@ class runtime {
         auto* t = (T*)(heap_next + sizeof(owned_extern_header));
         h->size = sizeof(T) + sizeof(owned_extern_header);
         heap_next += h->size;
+        h->move = [](void* dst, void* src) {
+            T* d = (T*)dst;
+            T* s = (T*)src;
+            new(d) T(std::move(*s));
+        };
         h->deconstructor = [](void* x) {
             ((T*)x)->~T();
         };
