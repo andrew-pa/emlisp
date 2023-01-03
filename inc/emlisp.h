@@ -1,7 +1,8 @@
 #pragma once
 #include <cassert>
 #include <cstdint>
-#include <map>
+#include <unordered_map>
+#include <unordered_set>
 #include <memory>
 #include <set>
 #include <stdexcept>
@@ -87,20 +88,26 @@ struct function {
 };
 
 struct frame {
-    std::map<value, value> data;
+    std::unordered_map<value, value> data;
 
     frame() = default;
 
-    frame(std::map<value, value>& data) : data(std::move(data)) {}
+    frame(std::unordered_map<value, value>& data) : data(std::move(data)) {}
 
     value get(value name);
     void  set(value name, value val);
 };
 
-typedef value (*extern_func_t)(class runtime*, value, void*);
+using extern_func_t = value (*)(class runtime *, value, void *);
 
 struct heap_info {
     size_t new_size, old_size;
+};
+
+using owned_extern_deconstructor_t = void (*)(void *);
+struct owned_extern_header {
+    uint64_t size;
+    owned_extern_deconstructor_t deconstructor;
 };
 
 class runtime {
@@ -117,9 +124,10 @@ class runtime {
 
     std::vector<value> reserved_syms;
 
-    std::map<value, std::shared_ptr<function>> macros;
-    std::vector<std::map<value, value>>        scopes;
-    value                                      look_up(value name);
+    std::unordered_map<value, std::shared_ptr<function>> macros;
+    std::vector<std::unordered_map<value, value>>        scopes;
+
+    value look_up(value name);
 
     void  compute_closure(value v, const std::set<value>& bound, std::set<value>& free);
     value apply_quasiquote(value s);
@@ -131,11 +139,12 @@ class runtime {
 
     frame* alloc_frame();
 
-    uint8_t* gc_copy_limit;
-    void     gc_process(value& c, std::map<value, value>& live_vals, uint8_t*& new_next);
+    void     gc_process(value& c, struct gc_state& st);
 
-    std::map<uint64_t, std::pair<value, uint64_t>> extern_values;
+    std::unordered_map<uint64_t, std::pair<value, uint64_t>> value_handles;
     uint64_t                                       next_extern_value_handle;
+
+    std::unordered_set<size_t> owned_externs;
 
     std::shared_ptr<function> create_function(value arg_list, value body);
 
@@ -191,22 +200,49 @@ class runtime {
     template<typename T>
     value make_extern_reference(T* ob) {
         // TODO: make this just cast the ptr in release mode and not bother with type checking
-        return cons((value)ob, from_int(typeid(T).hash_code())) | (value)value_type::_extern;
+        return (cons((value)ob, typeid(T).hash_code())
+            & ~0xf)
+            | (value)value_type::_extern;
     }
 
     template<typename T>
     T* get_extern_reference(value v) {
-        v = v | (value)value_type::cons;
-        if(typeid(T).hash_code() != to_int(second(v)))
+        assert(type_of(v) == value_type::_extern);
+        v = (v & ~0xf) | (value)value_type::cons;
+        if(typeid(T).hash_code() != second(v))
             throw std::runtime_error(
                 std::string("mismatched type unwraping extern value, expected: ") + typeid(T).name()
             );
         return (T*)first(v);
     }
+
+    template<typename T, typename ...Args>
+    value make_owned_extern(Args... args) {
+        if(heap_next - heap > heap_size) throw std::runtime_error("out of memory");
+        auto* h = (owned_extern_header*)heap_next;
+        auto* t = (T*)(heap_next + sizeof(owned_extern_header));
+        h->size = sizeof(T) + sizeof(owned_extern_header);
+        heap_next += h->size;
+        h->deconstructor = [](void* x) {
+            ((T*)x)->~T();
+        };
+        new(t) T(args...);
+        owned_externs.insert((uint64_t)t);
+        return make_extern_reference(t);
+    }
+
+    template<typename T>
+    T take_owned_extern(value v) {
+        T* p = get_extern_reference<T>(v);
+        assert((size_t)p >= (size_t)heap && (size_t)p < (size_t)(heap+heap_size));
+        owned_externs.erase((size_t)p);
+        return std::move(*p);
+    }
 };
 
 // must live as long as the runtime from which it was obtained
 class value_handle {
+  protected:
     runtime* rt;
     uint64_t h;
 
@@ -222,6 +258,18 @@ class value_handle {
                   operator value();
     ~value_handle();
 };
+
+// template<typename T>
+// class typed_value_handle : public value_handle {
+//     const T& operator*() const {
+//     }
+//
+//     T& operator*() {
+//     }
+//
+//     T* operator->() {
+//     }
+// };
 
 extern const char* EMLISP_STD_SRC;
 }  // namespace emlisp

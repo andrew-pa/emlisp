@@ -56,6 +56,10 @@ foreach(test ${test_inputs})
 endforeach()
 add_test(NAME test-stdlib COMMAND test_eval_driver ${CMAKE_CURRENT_SOURCE_DIR}/tests/std.lisp --include-stdlib)
 
+add_executable(test_extern_values tests/extern_values.cpp)
+target_link_libraries(test_extern_values emlisp)
+add_test(NAME test-extern-values COMMAND test_extern_values)
+
 process_emlisp_bindings(test_bind.cpp tests/autobind/api.h)
 add_executable(test_autobind_driver tests/autobind/test.cpp test_bind.cpp)
 target_link_libraries(test_autobind_driver emlisp)
