@@ -1,6 +1,7 @@
 #pragma once
 #include <iostream>
 #include <string>
+#include <memory>
 #include "emlisp_autobind.h"
 
 EL_OBJ struct test_simple_pod {
@@ -37,5 +38,10 @@ EL_OBJ struct counter {
 
     EL_M EL_WITH_CX void test_context(int* cx) {
         *cx = value;
+    }
+
+    EL_M template<typename T> EL_KNOWN_INSTS(<int> <float>)
+    void test_templates(T t) {
+        value += size_t(t);
     }
 };

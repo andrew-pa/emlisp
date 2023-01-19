@@ -1,4 +1,5 @@
 #include "token.h"
+#include <algorithm>
 #include <istream>
 
 std::optional<token> tokenizer::parse_symbol(char ch) {
@@ -66,15 +67,18 @@ token tokenizer::parse_str(char ch) {
 }
 
 const std::map<std::string_view, keyword> keywords = {
-    {"class",      keyword::class_    },
-    {"struct",     keyword::struct_   },
-    {"const",      keyword::const_    },
-    {"EL_OBJ",     keyword::el_obj    },
-    {"EL_PROP",    keyword::el_prop   },
-    {"EL_M",       keyword::el_m      },
-    {"EL_WITH_CX", keyword::el_with_cx},
-    {"r",          keyword::read      },
-    {"rw",         keyword::readwrite },
+    {"class",          keyword::class_        },
+    {"struct",         keyword::struct_       },
+    {"const",          keyword::const_        },
+    {"template",       keyword::template_     },
+    {"typename",       keyword::typename_     },
+    {"EL_OBJ",         keyword::el_obj        },
+    {"EL_PROP",        keyword::el_prop       },
+    {"EL_M",           keyword::el_m          },
+    {"EL_WITH_CX",     keyword::el_with_cx    },
+    {"EL_KNOWN_INSTS", keyword::el_known_insts},
+    {"r",              keyword::read          },
+    {"rw",             keyword::readwrite     },
 };
 
 token tokenizer::parse_id(char ch) {

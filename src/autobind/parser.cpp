@@ -5,6 +5,26 @@ void parser::check_next_symbol(symbol_type s, const std::string& msg) {
     if(!tk.is_symbol(s)) throw parse_error(tk, toks.line_number, msg);
 }
 
+std::vector<std::shared_ptr<cpptype>> parser::parse_template_param_list() {
+    std::vector<std::shared_ptr<cpptype>> args;
+    token                                 tk = toks.peek();
+    if(tk.is_symbol(symbol_type::close_angle))
+        toks.next();  // consume close angle, we will skip the loop
+
+    while(!tk.is_symbol(symbol_type::close_angle)) {
+        args.push_back(parse_type());
+        tk = toks.next();
+        if(tk.is_symbol(symbol_type::close_angle)) break;
+        if(!tk.is_symbol(symbol_type::comma)) {
+            throw parse_error(
+                tk, toks.line_number, "expected comma to seperate types in template instance args"
+            );
+        }
+    }
+
+    return args;
+}
+
 std::shared_ptr<cpptype> parser::parse_type() {
     auto tk = toks.next();
     // TODO: eof
@@ -17,24 +37,8 @@ std::shared_ptr<cpptype> parser::parse_type() {
         tk = toks.peek();
         if(tk.is_symbol(symbol_type::open_angle)) {
             toks.next();
-            std::vector<std::shared_ptr<cpptype>> args;
-            tk = toks.peek();
-            if(tk.is_symbol(symbol_type::close_angle))
-                toks.next();  // consume close angle, we will skip the loop
-
-            while(!tk.is_symbol(symbol_type::close_angle)) {
-                args.push_back(parse_type());
-                tk = toks.next();
-                if(tk.is_symbol(symbol_type::close_angle)) break;
-                if(!tk.is_symbol(symbol_type::comma)) {
-                    throw parse_error(
-                        tk,
-                        toks.line_number,
-                        "expected comma to seperate types in template instance args"
-                    );
-                }
-            }
-            ty = std::make_shared<template_instance>(name, args);
+            auto args = parse_template_param_list();
+            ty        = std::make_shared<template_instance>(name, args);
         }
 
         do {
@@ -70,6 +74,63 @@ property parser::parse_property() {
     return property{ty, prop_name, readonly};
 }
 
+template_known_instances parser::parse_known_instance_map() {
+    token                    tk = toks.peek();
+    template_known_instances known_insts;
+    while(!tk.is_symbol(symbol_type::close_paren)) {
+        check_next_symbol(
+            symbol_type::open_angle, "expected open angle to open known instance type parameters"
+        );
+        known_insts.emplace_back(parse_template_param_list());
+        tk = toks.peek();
+    }
+    return known_insts;
+}
+
+std::tuple<std::vector<id>, template_known_instances> parser::parse_template_def() {
+    check_next_symbol(symbol_type::open_angle, "expected < to open template parameter list");
+    std::vector<id> names;
+    token           tk = toks.peek();
+    if(tk.is_symbol(symbol_type::close_angle))
+        toks.next();  // consume close angle, we will skip the loop
+
+    while(!tk.is_symbol(symbol_type::close_angle)) {
+        if(!tk.is_keyword(keyword::typename_))
+            throw parse_error(
+                tk, toks.line_number, "expected typename to procede template parameter name"
+            );
+        toks.next();
+        token name = toks.next();
+        if(!name.is_id())
+            throw parse_error(
+                name, toks.line_number, "expected identifier for template parameter name"
+            );
+        names.push_back(name.data);
+        tk = toks.next();
+        if(tk.is_symbol(symbol_type::close_angle)) break;
+        if(!tk.is_symbol(symbol_type::comma)) {
+            throw parse_error(
+                tk, toks.line_number, "expected comma to seperate types in template instance args"
+            );
+        }
+    }
+
+    tk = toks.next();
+    if(!tk.is_keyword(keyword::el_known_insts))
+        throw parse_error(
+            tk, toks.line_number, "must provide known instances to bind template function"
+        );
+    check_next_symbol(symbol_type::open_paren, "expected open paren for known instance list");
+    auto known_insts = parse_known_instance_map();
+    if(known_insts.empty())
+        throw template_error(
+            toks.line_number, "must provide known instances to bind template function"
+        );
+    check_next_symbol(symbol_type::close_paren, "expected close paren for known instance list");
+
+    return {names, known_insts};
+}
+
 method parser::parse_method() {
     bool with_cx = false;
     if(toks.peek().is_keyword(keyword::el_with_cx)) {
@@ -77,12 +138,18 @@ method parser::parse_method() {
         with_cx = true;
     }
 
+    std::optional<std::tuple<std::vector<id>, template_known_instances>> template_info;
+    if(toks.peek().is_keyword(keyword::template_)) {
+        toks.next();
+        template_info = parse_template_def();
+    }
+
     auto ret_ty = parse_type();
 
     token tk = toks.next();
     if(!tk.is_id()) throw parse_error(tk, toks.line_number, "expected name of method");
 
-    auto m = method{tk.data, ret_ty, with_cx};
+    auto m = method{tk.data, ret_ty, with_cx, template_info};
 
     check_next_symbol(symbol_type::open_paren, "expected (");
     tk = toks.peek();

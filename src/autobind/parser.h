@@ -6,6 +6,8 @@
 #include <iostream>
 #include <memory>
 #include <optional>
+#include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -14,7 +16,8 @@ struct cpptype {
     virtual ~cpptype()                                                          = default;
 };
 
-using id = size_t;
+using id                       = size_t;
+using template_known_instances = std::vector<std::vector<std::shared_ptr<cpptype>>>;
 
 struct plain_type : public cpptype {
     id name;
@@ -93,9 +96,17 @@ struct method {
     std::shared_ptr<cpptype>                             return_type;
     std::vector<std::pair<std::shared_ptr<cpptype>, id>> args;
     bool                                                 with_cx;
+    std::optional<std::tuple<std::vector<id>, template_known_instances>>
+        template_names_and_known_instances;
 
-    method(id name, std::shared_ptr<cpptype> return_type, bool with_cx)
-        : name(name), return_type(std::move(return_type)), with_cx(with_cx) {}
+    method(
+        id                                                                   name,
+        std::shared_ptr<cpptype>                                             return_type,
+        bool                                                                 with_cx,
+        std::optional<std::tuple<std::vector<id>, template_known_instances>> t = {}
+    )
+        : name(name), return_type(std::move(return_type)), with_cx(with_cx),
+          template_names_and_known_instances(std::move(t)) {}
 
     std::ostream& print(std::ostream& out, const tokenizer& toks) const {
         out << "M ";
@@ -106,7 +117,22 @@ struct method {
             ty->print(out, toks) << ", ";
         }
         out << ") -> ";
-        return return_type->print(out, toks);
+        return_type->print(out, toks);
+        if(template_names_and_known_instances.has_value()) {
+            const auto& [names, known_insts] = template_names_and_known_instances.value();
+            out << "\ttemplate<";
+            for(const auto& n : names)
+                out << toks.identifiers[n] << ", ";
+            out << "> = { ";
+            for(const auto& ki : known_insts) {
+                out << "(";
+                for(const auto& t : ki)
+                    t->print(out, toks) << ", ";
+                out << ") ";
+            }
+            out << "}";
+        }
+        return out;
     }
 };
 
@@ -149,6 +175,12 @@ struct parse_error : public std::runtime_error {
         : std::runtime_error(s), tk(tk), ln(ln) {}
 };
 
+struct template_error : public std::runtime_error {
+    size_t ln;
+
+    template_error(size_t ln, const std::string& s) : std::runtime_error(s), ln(ln) {}
+};
+
 struct parser {
     tokenizer& toks;
 
@@ -157,8 +189,11 @@ struct parser {
     std::optional<object> next_object();
 
   private:
-    void                     check_next_symbol(symbol_type s, const std::string& msg);
-    std::shared_ptr<cpptype> parse_type();
-    property                 parse_property();
-    method                   parse_method();
+    void                                  check_next_symbol(symbol_type s, const std::string& msg);
+    std::shared_ptr<cpptype>              parse_type();
+    property                              parse_property();
+    method                                parse_method();
+    std::vector<std::shared_ptr<cpptype>> parse_template_param_list();
+    template_known_instances              parse_known_instance_map();
+    std::tuple<std::vector<id>, template_known_instances> parse_template_def();
 };

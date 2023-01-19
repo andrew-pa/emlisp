@@ -23,7 +23,20 @@ enum class symbol_type {
     eq
 };
 
-enum class keyword { class_, struct_, const_, el_obj, el_prop, el_m, el_with_cx, read, readwrite };
+enum class keyword {
+    class_,
+    struct_,
+    const_,
+    template_,
+    typename_,
+    el_obj,
+    el_prop,
+    el_m,
+    el_with_cx,
+    read,
+    readwrite,
+    el_known_insts
+};
 
 struct token {
     enum type_e { number, identifer, keyword, symbol, eof, str } type;
