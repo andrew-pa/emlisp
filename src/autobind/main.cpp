@@ -45,7 +45,7 @@ struct code_generator {
     code_generator(const std::filesystem::path& output_path, const tokenizer& toks)
         : out(output_path), toks(toks), next_tmp(1) {}
 
-    void out_define_fn(std::string_view name, const std::function<void()>& body) {
+    void define_fn(std::string_view name, const std::function<void()>& body) {
         out << "rt->define_fn(\"" << name << "\", [](runtime* rt, value args, void* cx) {\n";
         body();
         out << "}, cx);\n\n";
@@ -218,7 +218,7 @@ struct generate_visitor {
         const object& ob, const std::string& prefix, const property& prop
     ) {
         auto fn_name = prefix + make_lisp_name(toks.identifiers[prop.name]);
-        gen.out_define_fn(fn_name, [&]() {
+        gen.define_fn(fn_name, [&]() {
             // convert lisp self value into C++ type
             gen.unpack_self(ob);
             // if we're writing a new value and the property is read/write:
@@ -241,9 +241,10 @@ struct generate_visitor {
         });
     }
 
-    void generate_method_function(const object& ob, const std::string& prefix, const method& m) {
-        auto fn_name = prefix + make_lisp_name(toks.identifiers[m.name]);
-        gen.out_define_fn(fn_name, [&]() {
+    void generate_single_method_function(
+        const object& ob, const std::string& fn_name, const method& m
+    ) {
+        gen.define_fn(fn_name, [&]() {
             gen.unpack_self(ob);
             std::vector<std::string> arg_vals;
             size_t                   i = 1;
@@ -268,6 +269,32 @@ struct generate_visitor {
                 gen.return_from_fn(gen.cpp_to_lisp(cpp_retval, m.return_type));
             }
         });
+    }
+
+    void generate_method_function(const object& ob, const std::string& prefix, const method& m) {
+        if(m.template_names_and_known_instances.has_value()) {
+            const auto& [names, known_insts] = m.template_names_and_known_instances.value();
+            template_params params;
+            for(const auto& ki : known_insts) {
+                params.clear();
+                std::ostringstream oss;
+                oss << prefix << toks.identifiers[m.name] << "<";
+                for(size_t i = 0; i < names.size(); ++i) {
+                    params[names[i]] = ki[i];
+                    ki[i]->print(oss, toks);
+                    if(i < names.size() - 1) oss << ",";
+                }
+                oss << ">";
+                method nm{m.name, m.return_type->instantiate(params), m.with_cx};
+                nm.args.reserve(m.args.size());
+                for(const auto& a : m.args)
+                    nm.args.emplace_back(a.first->instantiate(params), a.second);
+                generate_single_method_function(ob, make_lisp_name(oss.str()), nm);
+            }
+        } else {
+            auto fn_name = prefix + make_lisp_name(toks.identifiers[m.name]);
+            generate_single_method_function(ob, fn_name, m);
+        }
     }
 
     void generate_bindings_for_object(const object& ob) {

@@ -42,6 +42,14 @@ int main(int argc, char* argv[]) {
         std::cout << "testcx/2\n";
         {rt.eval(rt.read("(counter/test-context c)"));
             assert(cx == 2);}
+
+        c.reset();
+        std::cout << "t/1\n";
+        {rt.eval(rt.read("(counter/test-templates<int> c 3)"));
+            assert(c.value == 3);}
+        std::cout << "t/2\n";
+        {rt.eval(rt.read("(counter/test-templates<float> c 2.0)"));
+            assert(c.value == 5);}
     } catch(emlisp::type_mismatch_error e) {
         std::cout << "error: " << e.what() << "; actual = " << e.actual << ", expected = " << e.expected << "\n";
         exit(3);

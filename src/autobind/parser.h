@@ -11,21 +11,30 @@
 #include <utility>
 #include <vector>
 
+using id                       = size_t;
+using template_known_instances = std::vector<std::vector<std::shared_ptr<struct cpptype>>>;
+using template_params          = std::unordered_map<id, std::shared_ptr<struct cpptype>>;
+
 struct cpptype {
-    virtual std::ostream& print(std::ostream& out, const tokenizer& toks) const = 0;
-    virtual ~cpptype()                                                          = default;
+    virtual std::ostream&            print(std::ostream& out, const tokenizer& toks) const = 0;
+    virtual std::shared_ptr<cpptype> instantiate(const template_params& params)            = 0;
+    virtual ~cpptype() = default;
 };
 
-using id                       = size_t;
-using template_known_instances = std::vector<std::vector<std::shared_ptr<cpptype>>>;
-
-struct plain_type : public cpptype {
+struct plain_type : public cpptype,
+                    std::enable_shared_from_this<plain_type> {
     id name;
 
     plain_type(id name) : name(name) {}
 
     std::ostream& print(std::ostream& out, const tokenizer& toks) const override {
         return out << toks.identifiers[name];
+    }
+
+    std::shared_ptr<cpptype> instantiate(const template_params& params) override {
+        auto r = params.find(name);
+        if(r != params.end()) return r->second;
+        return std::dynamic_pointer_cast<cpptype>(this->shared_from_this());
     }
 };
 
@@ -44,6 +53,13 @@ struct template_instance : public cpptype {
         }
         return out << ">";
     }
+
+    std::shared_ptr<cpptype> instantiate(const template_params& params) override {
+        std::vector<std::shared_ptr<cpptype>> new_args(args.size());
+        for(const auto& a : args)
+            new_args.emplace_back(a->instantiate(params));
+        return std::make_shared<template_instance>(name, new_args);
+    }
 };
 
 struct const_type : public cpptype {
@@ -55,6 +71,10 @@ struct const_type : public cpptype {
         out << "const ";
         return underlying->print(out, toks);
     }
+
+    std::shared_ptr<cpptype> instantiate(const template_params& params) override {
+        return std::make_shared<const_type>(underlying->instantiate(params));
+    }
 };
 
 struct ref_type : public cpptype {
@@ -65,6 +85,10 @@ struct ref_type : public cpptype {
     std::ostream& print(std::ostream& out, const tokenizer& toks) const override {
         return deref->print(out, toks) << "&";
     }
+
+    std::shared_ptr<cpptype> instantiate(const template_params& params) override {
+        return std::make_shared<ref_type>(deref->instantiate(params));
+    }
 };
 
 struct ptr_type : public cpptype {
@@ -74,6 +98,10 @@ struct ptr_type : public cpptype {
 
     std::ostream& print(std::ostream& out, const tokenizer& toks) const override {
         return deref->print(out, toks) << "*";
+    }
+
+    std::shared_ptr<cpptype> instantiate(const template_params& params) override {
+        return std::make_shared<ref_type>(deref->instantiate(params));
     }
 };
 
