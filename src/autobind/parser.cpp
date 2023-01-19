@@ -30,9 +30,43 @@ std::shared_ptr<cpptype> parser::parse_type() {
     // TODO: eof
     if(tk.is_keyword(keyword::const_)) return std::make_shared<const_type>(parse_type());
 
-    if(tk.is_id()) {
-        auto                     name = tk.data;
-        std::shared_ptr<cpptype> ty   = std::make_shared<plain_type>(name);
+    std::shared_ptr<cpptype> ty;
+
+    if(tk.is_keyword(keyword::typename_)) {
+        std::vector<id> names;
+        while(true) {
+            tk = toks.next();
+            if(!tk.is_id())
+                throw parse_error(tk, toks.line_number, "expected identifier in dependent name");
+            std::cout << toks.identifiers[tk.data] << "\n";
+            names.emplace_back(tk.data);
+            tk = toks.peek();
+            if(tk.is_symbol(symbol_type::double_colon))
+                toks.next();
+            else
+                break;
+        }
+        ty = std::make_shared<dependent_name_type>(names);
+    } else if(tk.is_id()) {
+        auto name = tk.data;
+        tk        = toks.peek();
+        if(tk.is_symbol(symbol_type::double_colon)) {
+            std::ostringstream oss;
+            oss << toks.identifiers[name];
+            while(tk.is_symbol(symbol_type::double_colon)) {
+                toks.next();
+                tk = toks.next();
+                if(!tk.is_id())
+                    throw parse_error(
+                        tk, toks.line_number, "expected identifier in qualified name"
+                    );
+                oss << "::" << toks.identifiers[tk.data];
+                tk = toks.peek();
+            }
+            name = toks.identifiers.size();
+            toks.identifiers.emplace_back(oss.str());
+        }
+        ty = std::make_shared<plain_type>(name);
 
         tk = toks.peek();
         if(tk.is_symbol(symbol_type::open_angle)) {
@@ -40,7 +74,9 @@ std::shared_ptr<cpptype> parser::parse_type() {
             auto args = parse_template_param_list();
             ty        = std::make_shared<template_instance>(name, args);
         }
+    }
 
+    if(ty != nullptr) {
         do {
             tk = toks.peek();
             if(tk.is_symbol(symbol_type::star))
@@ -53,7 +89,7 @@ std::shared_ptr<cpptype> parser::parse_type() {
         } while(!tk.is_eof());
     }
 
-    throw parse_error(tk, toks.line_number, "parse type, expected id");
+    throw parse_error(tk, toks.line_number, "parse type, expected id or dependent name");
 }
 
 property parser::parse_property() {

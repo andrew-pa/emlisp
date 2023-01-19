@@ -76,9 +76,11 @@ struct code_generator {
     }
 
     void call_method_expr(
-        const std::string& self, id method_name, const std::vector<std::string>& arg_vals
+        const std::string&              self,
+        const std::string&              method_name,
+        const std::vector<std::string>& arg_vals
     ) {
-        out << self << "->" << toks.identifiers[method_name] << "(";
+        out << self << "->" << method_name << "(";
         for(int i = 0; i < arg_vals.size(); ++i) {
             out << arg_vals[i];
             if(i < arg_vals.size() - 1) out << ", ";
@@ -91,7 +93,7 @@ struct code_generator {
     ) {
         auto tmp = new_tmp_var();
         out << "auto " << tmp << " = ";
-        call_method_expr(self, method_name, arg_vals);
+        call_method_expr(self, toks.identifiers[method_name], arg_vals);
         return tmp;
     }
 
@@ -242,7 +244,10 @@ struct generate_visitor {
     }
 
     void generate_single_method_function(
-        const object& ob, const std::string& fn_name, const method& m
+        const object&      ob,
+        const std::string& fn_name,
+        const std::string& target_method_name,
+        const method&      m
     ) {
         gen.define_fn(fn_name, [&]() {
             gen.unpack_self(ob);
@@ -262,7 +267,7 @@ struct generate_visitor {
             }
             auto prt = std::dynamic_pointer_cast<plain_type>(m.return_type);
             if(prt != nullptr && toks.identifiers[prt->name] == "void") {
-                gen.call_method_expr("self", m.name, arg_vals);
+                gen.call_method_expr("self", target_method_name, arg_vals);
                 gen.return_from_fn();
             } else {
                 auto cpp_retval = gen.call_method("self", m.name, arg_vals);
@@ -277,23 +282,26 @@ struct generate_visitor {
             template_params params;
             for(const auto& ki : known_insts) {
                 params.clear();
-                std::ostringstream oss;
-                oss << prefix << toks.identifiers[m.name] << "<";
+                std::ostringstream fn_name;
+                fn_name << toks.identifiers[m.name] << "<";
                 for(size_t i = 0; i < names.size(); ++i) {
                     params[names[i]] = ki[i];
-                    ki[i]->print(oss, toks);
-                    if(i < names.size() - 1) oss << ",";
+                    ki[i]->print(fn_name, toks);
+                    if(i < names.size() - 1) fn_name << ",";
                 }
-                oss << ">";
+                fn_name << ">";
                 method nm{m.name, m.return_type->instantiate(params), m.with_cx};
                 nm.args.reserve(m.args.size());
                 for(const auto& a : m.args)
                     nm.args.emplace_back(a.first->instantiate(params), a.second);
-                generate_single_method_function(ob, make_lisp_name(oss.str()), nm);
+                auto sfn_name = fn_name.str();
+                generate_single_method_function(
+                    ob, make_lisp_name(prefix + sfn_name), fn_name.str(), nm
+                );
             }
         } else {
             auto fn_name = prefix + make_lisp_name(toks.identifiers[m.name]);
-            generate_single_method_function(ob, fn_name, m);
+            generate_single_method_function(ob, fn_name, toks.identifiers[m.name], m);
         }
     }
 

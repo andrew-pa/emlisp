@@ -13,10 +13,10 @@ std::optional<token> tokenizer::parse_symbol(char ch) {
         case '<': return {symbol_type::open_angle};
         case '>': return {symbol_type::close_angle};
         case ':':
-            // if (_in->peek() == ':') {
-            //     _in->get();
-            //     return {symbol_type::double_colon};
-            // }
+            if(_in->peek() == ':') {
+                _in->get();
+                return {symbol_type::double_colon};
+            }
             return {symbol_type::colon};
         case ';': return {symbol_type::semicolon};
         case ',': return {symbol_type::comma};
@@ -84,7 +84,7 @@ const std::map<std::string_view, keyword> keywords = {
 token tokenizer::parse_id(char ch) {
     std::string id;
     id += ch;
-    while(*_in && ((isalnum(_in->peek()) != 0) || _in->peek() == '_' || _in->peek() == ':')) {
+    while(*_in && ((isalnum(_in->peek()) != 0) || _in->peek() == '_')) {
         ch = _in->get();
         if(ch > 0)
             id += ch;

@@ -38,6 +38,38 @@ struct plain_type : public cpptype,
     }
 };
 
+struct dependent_name_type : public cpptype,
+                             std::enable_shared_from_this<dependent_name_type> {
+    std::vector<id> names;
+
+    dependent_name_type(std::vector<id> names) : names(std::move(names)) {}
+
+    std::ostream& print(std::ostream& out, const tokenizer& toks) const override {
+        out << "typename ";
+        for(size_t i = 0; i < names.size(); ++i) {
+            out << toks.identifiers[names[i]];
+            if(i < names.size() - 1) out << "::";
+        }
+        return out;
+    }
+
+    std::shared_ptr<cpptype> instantiate(const template_params& params) override {
+        auto r = params.find(names[0]);
+        if(r != params.end()) {
+            std::vector<id> nnames{names};
+            auto            pt = std::dynamic_pointer_cast<plain_type>(r->second);
+            if(pt == nullptr) {
+                throw std::runtime_error(
+                    "must bind plain type to template parameter used in dependent type name"
+                );
+            }
+            nnames[0] = pt->name;
+            return std::make_shared<dependent_name_type>(nnames);
+        }
+        return std::dynamic_pointer_cast<cpptype>(this->shared_from_this());
+    }
+};
+
 struct template_instance : public cpptype {
     id                                    name;
     std::vector<std::shared_ptr<cpptype>> args;

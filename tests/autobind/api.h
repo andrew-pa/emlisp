@@ -22,6 +22,10 @@ EL_OBJ struct test_simple_method {
     EL_M int test(std::shared_ptr<int> x) { return *x; }
 };
 
+struct asdf {
+    using test = int;
+};
+
 EL_OBJ struct counter {
     EL_PROP(r) size_t value;
 
@@ -43,5 +47,9 @@ EL_OBJ struct counter {
     EL_M template<typename T> EL_KNOWN_INSTS(<int> <float>)
     void test_templates(T t) {
         value += size_t(t);
+    }
+
+    EL_M template<typename T> EL_KNOWN_INSTS(<asdf>)
+    void test_templates2(typename T::test t) {
     }
 };
