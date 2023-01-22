@@ -72,6 +72,7 @@ const std::map<std::string_view, keyword> keywords = {
     {"const",          keyword::const_        },
     {"template",       keyword::template_     },
     {"typename",       keyword::typename_     },
+    {"using",          keyword::using_        },
     {"EL_OBJ",         keyword::el_obj        },
     {"EL_PROP",        keyword::el_prop       },
     {"EL_M",           keyword::el_m          },
@@ -79,6 +80,7 @@ const std::map<std::string_view, keyword> keywords = {
     {"EL_KNOWN_INSTS", keyword::el_known_insts},
     {"r",              keyword::read          },
     {"rw",             keyword::readwrite     },
+    {"EL_TYPEDEF",     keyword::el_typedef    },
 };
 
 token tokenizer::parse_id(char ch) {

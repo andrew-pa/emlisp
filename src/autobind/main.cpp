@@ -89,11 +89,13 @@ struct code_generator {
     }
 
     std::string call_method(
-        const std::string& self, id method_name, const std::vector<std::string>& arg_vals
+        const std::string&              self,
+        const std::string&              method_name,
+        const std::vector<std::string>& arg_vals
     ) {
         auto tmp = new_tmp_var();
         out << "auto " << tmp << " = ";
-        call_method_expr(self, toks.identifiers[method_name], arg_vals);
+        call_method_expr(self, method_name, arg_vals);
         return tmp;
     }
 
@@ -270,7 +272,7 @@ struct generate_visitor {
                 gen.call_method_expr("self", target_method_name, arg_vals);
                 gen.return_from_fn();
             } else {
-                auto cpp_retval = gen.call_method("self", m.name, arg_vals);
+                auto cpp_retval = gen.call_method("self", target_method_name, arg_vals);
                 gen.return_from_fn(gen.cpp_to_lisp(cpp_retval, m.return_type));
             }
         });
@@ -279,7 +281,7 @@ struct generate_visitor {
     void generate_method_function(const object& ob, const std::string& prefix, const method& m) {
         if(m.template_names_and_known_instances.has_value()) {
             const auto& [names, known_insts] = m.template_names_and_known_instances.value();
-            template_params params;
+            named_types_map params;
             for(const auto& ki : known_insts) {
                 params.clear();
                 std::ostringstream fn_name;
@@ -290,10 +292,10 @@ struct generate_visitor {
                     if(i < names.size() - 1) fn_name << ",";
                 }
                 fn_name << ">";
-                method nm{m.name, m.return_type->instantiate(params), m.with_cx};
+                method nm{m.name, m.return_type->substitute(params), m.with_cx};
                 nm.args.reserve(m.args.size());
                 for(const auto& a : m.args)
-                    nm.args.emplace_back(a.first->instantiate(params), a.second);
+                    nm.args.emplace_back(a.first->substitute(params), a.second);
                 auto sfn_name = fn_name.str();
                 generate_single_method_function(
                     ob, make_lisp_name(prefix + sfn_name), fn_name.str(), nm
@@ -358,17 +360,18 @@ int main(int argc, char* argv[]) {
         toks.reset(&ins);
         try {
             parser p{toks};
-            while(true) {
-                auto ob = p.next_object();
-                if(!ob.has_value()) break;
-                ast.objects.push_back(ob.value());
-            }
+            p.parse(ast);
         } catch(parse_error e) {
             std::cerr << "failed to parse " << inp << " at ln " << e.ln << ": " << e.what() << " ("
                       << e.tk.type << ", " << e.tk.data << ")";
             return -1;
         }
     }
+
+    ast.print(std::cout, toks);
+
+    for(auto& o : ast.objects)
+        o.substitute_in_place(ast.typedefs);
 
     ast.print(std::cout, toks);
 

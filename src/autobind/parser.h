@@ -13,11 +13,11 @@
 
 using id                       = size_t;
 using template_known_instances = std::vector<std::vector<std::shared_ptr<struct cpptype>>>;
-using template_params          = std::unordered_map<id, std::shared_ptr<struct cpptype>>;
+using named_types_map          = std::unordered_map<id, std::shared_ptr<struct cpptype>>;
 
 struct cpptype {
     virtual std::ostream&            print(std::ostream& out, const tokenizer& toks) const = 0;
-    virtual std::shared_ptr<cpptype> instantiate(const template_params& params)            = 0;
+    virtual std::shared_ptr<cpptype> substitute(const named_types_map& params)             = 0;
     virtual ~cpptype() = default;
 };
 
@@ -31,7 +31,7 @@ struct plain_type : public cpptype,
         return out << toks.identifiers[name];
     }
 
-    std::shared_ptr<cpptype> instantiate(const template_params& params) override {
+    std::shared_ptr<cpptype> substitute(const named_types_map& params) override {
         auto r = params.find(name);
         if(r != params.end()) return r->second;
         return std::dynamic_pointer_cast<cpptype>(this->shared_from_this());
@@ -53,7 +53,7 @@ struct dependent_name_type : public cpptype,
         return out;
     }
 
-    std::shared_ptr<cpptype> instantiate(const template_params& params) override {
+    std::shared_ptr<cpptype> substitute(const named_types_map& params) override {
         auto r = params.find(names[0]);
         if(r != params.end()) {
             std::vector<id> nnames{names};
@@ -86,10 +86,11 @@ struct template_instance : public cpptype {
         return out << ">";
     }
 
-    std::shared_ptr<cpptype> instantiate(const template_params& params) override {
-        std::vector<std::shared_ptr<cpptype>> new_args(args.size());
+    std::shared_ptr<cpptype> substitute(const named_types_map& params) override {
+        std::vector<std::shared_ptr<cpptype>> new_args;
+        new_args.reserve(args.size());
         for(const auto& a : args)
-            new_args.emplace_back(a->instantiate(params));
+            new_args.emplace_back(a->substitute(params));
         return std::make_shared<template_instance>(name, new_args);
     }
 };
@@ -104,8 +105,8 @@ struct const_type : public cpptype {
         return underlying->print(out, toks);
     }
 
-    std::shared_ptr<cpptype> instantiate(const template_params& params) override {
-        return std::make_shared<const_type>(underlying->instantiate(params));
+    std::shared_ptr<cpptype> substitute(const named_types_map& params) override {
+        return std::make_shared<const_type>(underlying->substitute(params));
     }
 };
 
@@ -118,8 +119,8 @@ struct ref_type : public cpptype {
         return deref->print(out, toks) << "&";
     }
 
-    std::shared_ptr<cpptype> instantiate(const template_params& params) override {
-        return std::make_shared<ref_type>(deref->instantiate(params));
+    std::shared_ptr<cpptype> substitute(const named_types_map& params) override {
+        return std::make_shared<ref_type>(deref->substitute(params));
     }
 };
 
@@ -132,8 +133,8 @@ struct ptr_type : public cpptype {
         return deref->print(out, toks) << "*";
     }
 
-    std::shared_ptr<cpptype> instantiate(const template_params& params) override {
-        return std::make_shared<ref_type>(deref->instantiate(params));
+    std::shared_ptr<cpptype> substitute(const named_types_map& params) override {
+        return std::make_shared<ptr_type>(deref->substitute(params));
     }
 };
 
@@ -149,6 +150,8 @@ struct property {
         out << "P " << toks.identifiers[name] << ": ";
         return type->print(out, toks) << (readonly ? " (ro)" : " (rw)");
     }
+
+    void substitute_in_place(const named_types_map& subs) { type = type->substitute(subs); }
 };
 
 struct method {
@@ -194,6 +197,18 @@ struct method {
         }
         return out;
     }
+
+    void substitute_in_place(const named_types_map& subs) {
+        return_type = return_type->substitute(subs);
+        for(auto& [t, _] : args)
+            t = t->substitute(subs);
+        if(template_names_and_known_instances.has_value()) {
+            auto& m = std::get<1>(template_names_and_known_instances.value());
+            for(auto& ts : m)
+                for(auto& t : ts)
+                    t = t->substitute(subs);
+        }
+    }
 };
 
 struct object {
@@ -215,14 +230,26 @@ struct object {
         }
         return out << "}";
     }
+
+    void substitute_in_place(const named_types_map& subs) {
+        for(auto& p : properties)
+            p.substitute_in_place(subs);
+        for(auto& m : methods)
+            m.substitute_in_place(subs);
+    }
 };
 
 struct world {
     std::vector<object> objects;
+    named_types_map     typedefs;
 
     std::ostream& print(std::ostream& out, const tokenizer& toks) const {
         for(const auto& ob : objects)
             ob.print(out, toks) << "\n";
+        for(const auto& [name, ty] : typedefs) {
+            out << "using " << toks.identifiers[name] << " as ";
+            ty->print(out, toks) << "\n";
+        }
         return out;
     }
 };
@@ -246,14 +273,16 @@ struct parser {
 
     parser(tokenizer& toks) : toks(toks) {}
 
-    std::optional<object> next_object();
+    void parse(world& ast);
 
   private:
-    void                                  check_next_symbol(symbol_type s, const std::string& msg);
-    std::shared_ptr<cpptype>              parse_type();
-    property                              parse_property();
-    method                                parse_method();
-    std::vector<std::shared_ptr<cpptype>> parse_template_param_list();
-    template_known_instances              parse_known_instance_map();
+    void                     check_next_symbol(symbol_type s, const std::string& msg);
+    std::shared_ptr<cpptype> parse_type();
+    property                 parse_property();
+    method                   parse_method();
+    object                   parse_object();
+    std::pair<id, std::shared_ptr<cpptype>>               parse_typedef();
+    std::vector<std::shared_ptr<cpptype>>                 parse_template_param_list();
+    template_known_instances                              parse_known_instance_map();
     std::tuple<std::vector<id>, template_known_instances> parse_template_def();
 };

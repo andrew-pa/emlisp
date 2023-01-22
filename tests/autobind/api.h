@@ -12,10 +12,12 @@ EL_OBJ struct test_simple_pod {
     EL_PROP(rw) std::shared_ptr<std::string> shared_str;
 };
 
+EL_TYPEDEF using long_name_for_int = int;
+
 EL_OBJ struct test_simple_method {
     EL_M void run() {}
     EL_M void skip(int amount) {}
-    EL_M void leap(int amount, float yaw) {}
+    EL_M void leap(long_name_for_int amount, float yaw) {}
     EL_M void hop(int* amount) {}
     EL_M void skirt(int* amount, char x) {}
     EL_M size_t* jump(bool yeet) {return nullptr;}

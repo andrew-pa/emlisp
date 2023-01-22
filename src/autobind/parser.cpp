@@ -219,12 +219,8 @@ method parser::parse_method() {
     return m;
 }
 
-std::optional<object> parser::next_object() {
+object parser::parse_object() {
     token tk = toks.next();
-    while(!tk.is_eof() && !tk.is_keyword(keyword::el_obj))
-        tk = toks.next();
-    if(tk.is_eof()) return std::nullopt;
-    tk = toks.next();
     if(!tk.is_keyword(keyword::class_) && !tk.is_keyword(keyword::struct_))
         throw parse_error(tk, toks.line_number, "can only apply EL_OBJ to classes and structs");
     tk = toks.next();
@@ -252,4 +248,33 @@ std::optional<object> parser::next_object() {
     }
 
     return obj;
+}
+
+std::pair<id, std::shared_ptr<cpptype>> parser::parse_typedef() {
+    token tk = toks.next();
+    if(!tk.is_keyword(keyword::using_))
+        throw parse_error(tk, toks.line_number, "only support using= style typedefs");
+
+    tk = toks.next();
+    if(!tk.is_id()) throw parse_error(tk, toks.line_number, "expected name for typedef");
+    id name = tk.data;
+
+    check_next_symbol(symbol_type::eq, "expected equals in using statement");
+
+    auto ty = parse_type();
+
+    check_next_symbol(symbol_type::semicolon, "expected semicolon to end using statement");
+
+    return {name, ty};
+}
+
+void parser::parse(world& ast) {
+    token tk = toks.next();
+    while(!tk.is_eof()) {
+        if(tk.is_keyword(keyword::el_obj))
+            ast.objects.emplace_back(parse_object());
+        else if(tk.is_keyword(keyword::el_typedef))
+            ast.typedefs.emplace(parse_typedef());
+        tk = toks.next();
+    }
 }

@@ -29,13 +29,15 @@ enum class keyword {
     const_,
     template_,
     typename_,
+    using_,
     el_obj,
     el_prop,
     el_m,
     el_with_cx,
     read,
     readwrite,
-    el_known_insts
+    el_known_insts,
+    el_typedef
 };
 
 struct token {
