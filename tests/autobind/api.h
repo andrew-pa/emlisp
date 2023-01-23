@@ -39,3 +39,19 @@ EL_OBJ struct counter {
         *cx = value;
     }
 };
+
+EL_OBJ struct test_fn {
+    EL_M void times(int count, const std::function<void(int)>& f) {
+        for(int i = 0; i < count; ++i) {
+            f(i);
+        }
+    }
+
+    EL_M int times2(int count, int stride, const std::function<int(int, bool)>& f) {
+        int x = 0;
+        for(int i = 0; i < count; ++i) {
+            x += f(i*stride, i % 2 == 0);
+        }
+        return x;
+    }
+};
