@@ -84,9 +84,29 @@ std::shared_ptr<cpptype> parser::parse_type() {
             else if(tk.is_symbol(symbol_type::ampersand))
                 ty = std::make_shared<ref_type>(ty);
             else
-                return ty;
+                break;
             tk = toks.next();
         } while(!tk.is_eof());
+
+        tk = toks.peek();
+        if(tk.is_symbol(symbol_type::open_paren)) {
+            toks.next();
+            tk = toks.peek();
+            std::vector<std::shared_ptr<cpptype>> args;
+            while(!tk.is_symbol(symbol_type::close_paren)) {
+                args.push_back(parse_type());
+                tk = toks.next();
+                if(tk.is_symbol(symbol_type::close_paren)) break;
+                if(!tk.is_symbol(symbol_type::comma)) {
+                    throw parse_error(
+                        tk, toks.line_number, "expected comma to seperate types of function args"
+                    );
+                }
+            }
+            return std::make_shared<fn_type>(ty, args);
+        } else {
+            return ty;
+        }
     }
 
     throw parse_error(tk, toks.line_number, "parse type, expected id or dependent name");

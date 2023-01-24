@@ -138,6 +138,23 @@ struct ptr_type : public cpptype {
     }
 };
 
+struct fn_type : public cpptype {
+    std::shared_ptr<cpptype>              return_type;
+    std::vector<std::shared_ptr<cpptype>> arguments;
+
+    fn_type(std::shared_ptr<cpptype> ret_type, std::vector<std::shared_ptr<cpptype>> arguments)
+        : return_type(std::move(ret_type)), arguments(std::move(arguments)) {}
+
+    std::ostream& print(std::ostream& out, const tokenizer& toks) const override {
+        return_type->print(out, toks) << "(";
+        for(size_t i = 0; i < arguments.size(); ++i) {
+            arguments[i]->print(out, toks);
+            if(i < arguments.size() - 1) out << ",";
+        }
+        return out << ")";
+    }
+};
+
 struct property {
     id                       name;
     std::shared_ptr<cpptype> type;

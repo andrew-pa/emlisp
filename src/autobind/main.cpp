@@ -99,35 +99,37 @@ struct code_generator {
         return tmp;
     }
 
-    std::string lisp_to_cpp(const std::string& lisp_value, const std::shared_ptr<cpptype>& type) {
+    std::string lisp_to_cpp(const std::string& lisp_value, std::shared_ptr<cpptype> type) {
         auto tmp = new_tmp_var();
-        out << "auto " << tmp << " = ";
+
+        // const T& is basically a value type
+        auto ct = std::dynamic_pointer_cast<const_type>(type);
+        if(ct != nullptr) {
+            auto rt = std::dynamic_pointer_cast<ref_type>(ct->underlying);
+            if(rt != nullptr) type = rt->deref;
+        }
 
         auto pt = std::dynamic_pointer_cast<plain_type>(type);
-        if(pt == nullptr) {
-            // const T& is basically a value type
-            auto ct = std::dynamic_pointer_cast<const_type>(type);
-            if(ct != nullptr) {
-                auto rt = std::dynamic_pointer_cast<ref_type>(ct->underlying);
-                pt      = std::dynamic_pointer_cast<plain_type>(rt->deref);
-            }
-        }
         if(pt != nullptr) {
             if(intlike_types.find(toks.identifiers[pt->name]) != intlike_types.end()) {
-                out << "to_int(" << lisp_value << ");\n";
+                out << "auto " << tmp << " = "
+                    << "to_int(" << lisp_value << ");\n";
                 return tmp;
             }
             if(floatlike_types.find(toks.identifiers[pt->name]) != floatlike_types.end()) {
-                out << "to_float(" << lisp_value << ");\n";
+                out << "auto " << tmp << " = "
+                    << "to_float(" << lisp_value << ");\n";
                 return tmp;
             }
             if(toks.identifiers[pt->name] == "bool") {
-                out << "to_bool(" << lisp_value << ");\n";
+                out << "auto " << tmp << " = "
+                    << "to_bool(" << lisp_value << ");\n";
                 return tmp;
             }
             if(toks.identifiers[pt->name] == "std::string"
                || toks.identifiers[pt->name] == "std::string_view") {
-                out << "rt->to_str(" << lisp_value << ");\n";
+                out << "auto " << tmp << " = "
+                    << "rt->to_str(" << lisp_value << ");\n";
                 return tmp;
             }
         }
@@ -136,12 +138,51 @@ struct code_generator {
         if(tt != nullptr) {
             const auto& name = toks.identifiers[tt->name];
             if(name == "std::vector") {
-                out << "rt->to_vec(" << lisp_value << ");\n";
+                out << "auto " << tmp << " = "
+                    << "rt->to_vec(" << lisp_value << ");\n";
+                return tmp;
+            }
+            if(name == "std::function") {
+                auto fn = std::dynamic_pointer_cast<fn_type>(tt->args.at(0));
+                if(fn == nullptr) throw std::runtime_error("std::function must have function type");
+                //  TODO: this captures the value for the function, which *could* get garbage
+                //  collected before the C++ closure is invoked. Ideally we would create a value
+                //  handle that is moved into the closure.
+                auto fvh = new_tmp_var();
+                out << "auto " << fvh << " = rt->handle_for(" << lisp_value << ");\n";
+                out << "auto " << tmp << " = "
+                    << "[&rt," << fvh << " = std::move(" << fvh << ")](";
+                std::vector<std::string> cpp_args;
+                for(size_t i = 0; i < fn->arguments.size(); ++i) {
+                    auto n = new_tmp_var();
+                    fn->arguments[i]->print(out, toks) << " " << n;
+                    cpp_args.emplace_back(n);
+                    if(i < fn->arguments.size() - 1) out << ",";
+                }
+                out << ") -> ";
+                fn->return_type->print(out, toks) << " {\n";
+                std::vector<std::string> lisp_args;
+                for(size_t i = 0; i < fn->arguments.size(); ++i)
+                    lisp_args.emplace_back(cpp_to_lisp(cpp_args[i], fn->arguments[i]));
+                out << "auto args = ";
+                for(size_t i = 0; i < fn->arguments.size(); ++i)
+                    out << "rt->cons(" << lisp_args[i] << ", ";
+                out << "NIL";
+                for(size_t i = 0; i < fn->arguments.size(); ++i)
+                    out << ")";
+                out << ";\n";
+                out << "auto result = rt->apply(*" << fvh << ", "
+                    << "args);\n";
+                auto prt = std::dynamic_pointer_cast<plain_type>(fn->return_type);
+                if(prt == nullptr || toks.identifiers[prt->name] != "void")
+                    return_from_fn(lisp_to_cpp("result", fn->return_type));
+                out << "};\n";
                 return tmp;
             }
         }
 
-        out << "*rt->get_extern_reference<";
+        out << "auto " << tmp << " = "
+            << "*rt->get_extern_reference<";
         type->print(out, toks);
         out << ">(" << lisp_value << ");\n";
         return tmp;

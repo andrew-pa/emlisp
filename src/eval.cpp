@@ -191,8 +191,61 @@ value runtime::eval_list(value x) {
     return cons(eval(first(x)), eval_list(second(x)));
 }
 
-// TODO: f should probably be a function object, we should check for builtins somewhere else
-value runtime::apply(value f, value arguments) {
+value runtime::apply(value fv, value arguments) {
+    value result = NIL;
+    // this->write(std::cout << "!!! ", fv) << "\n";
+    if(type_of(fv) == value_type::_extern) {
+        extern_func_t fn      = (extern_func_t)(*(uint64_t*)(fv >> 4) >> 4);
+        void*         closure = (frame*)(*((uint64_t*)(fv >> 4) + 1) >> 4);
+        value         a       = eval_list(arguments);
+        result                = (*fn)(this, a, closure);
+    } else {
+        check_type(fv, value_type::closure, "expected function for function call");
+        function* fn = (function*)(*(uint64_t*)(fv >> 4) >> 4);
+        // std::cout << "calling funtion " << std::hex << fn << std::dec << "/" <<
+        // fn->arguments.size() << "\n\tbody = "; this->write(std::cout, fn->body) << "\n";
+        frame*                           closure = (frame*)(*((uint64_t*)(fv >> 4) + 1) >> 4);
+        std::unordered_map<value, value> fr;
+        value                            args = arguments;
+        for(size_t i = 0; i < fn->arguments.size(); ++i) {
+            if(args == NIL) throw std::runtime_error("argument count mismatch");
+            auto arg = fn->arguments[i];
+            // std::cout << "function " << std::hex << fn << std::dec << "| i = " << i << ",
+            // fa[i] = ";
+            //  this->write(std::cout, arg);
+            // std::cout << ", a[i] = ";
+            //  this->write(std::cout, first(args));
+            // std::cout << " →\n";
+            auto val = eval(first(args));  // some how executing this line of code manages to wreck
+                                           // fn->arguments and also somehow takes out scoping info
+                                           // because at it is currently written, it complains that
+                                           // it can't find local variables this->write(std::cout,
+                                           // val); std::cout << "\n";
+            fr.emplace(arg, val);
+            // fr[fn->arguments[i]] = eval(first(args));
+            args = second(args);
+        }
+        scopes.push_back(closure->data);
+        scopes.push_back(fr);
+        /*std::cout << "scopes:\n";
+          for(const auto& sc : scopes) {
+          std::cout << "\t{  ";
+          for(const auto&[name, val] : sc) {
+          this->write(std::cout, name) << ": ";
+          this->write(std::cout, val) << "  ";
+          }
+          std::cout << "}\n";
+          }*/
+
+        result = eval(fn->body);
+        scopes.pop_back();
+        closure->data = scopes[scopes.size() - 1];
+        scopes.pop_back();
+    }
+    return result;
+}
+
+std::optional<value> runtime::apply_builtin(value f, value arguments) {
     value result = NIL;
     if(f == sym_quote) {
         result = first(arguments);
@@ -329,60 +382,8 @@ value runtime::apply(value f, value arguments) {
         }
     } else if(f == sym_quasiquote) {
         result = apply_quasiquote(first(arguments));
-    }
-
-    else {
-        auto fv = eval(f);
-        // this->write(std::cout << "!!! ", fv) << "\n";
-        if(type_of(fv) == value_type::_extern) {
-            extern_func_t fn      = (extern_func_t)(*(uint64_t*)(fv >> 4) >> 4);
-            void*         closure = (frame*)(*((uint64_t*)(fv >> 4) + 1) >> 4);
-            value         a       = eval_list(arguments);
-            result                = (*fn)(this, a, closure);
-        } else {
-            check_type(fv, value_type::closure, "expected function for function call");
-            function* fn = (function*)(*(uint64_t*)(fv >> 4) >> 4);
-            // std::cout << "calling funtion " << std::hex << fn << std::dec << "/" <<
-            // fn->arguments.size() << "\n\tbody = "; this->write(std::cout, fn->body) << "\n";
-            frame*                           closure = (frame*)(*((uint64_t*)(fv >> 4) + 1) >> 4);
-            std::unordered_map<value, value> fr;
-            value                            args = arguments;
-            for(size_t i = 0; i < fn->arguments.size(); ++i) {
-                if(args == NIL) throw std::runtime_error("argument count mismatch");
-                auto arg = fn->arguments[i];
-                // std::cout << "function " << std::hex << fn << std::dec << "| i = " << i << ",
-                // fa[i] = ";
-                //  this->write(std::cout, arg);
-                // std::cout << ", a[i] = ";
-                //  this->write(std::cout, first(args));
-                // std::cout << " →\n";
-                auto val = eval(first(args)
-                );  // some how executing this line of code manages to wreck fn->arguments and also
-                    // somehow takes out scoping info because at it is currently written, it
-                    // complains that it can't find local variables
-                // this->write(std::cout, val);
-                // std::cout << "\n";
-                fr.emplace(arg, val);
-                // fr[fn->arguments[i]] = eval(first(args));
-                args = second(args);
-            }
-            scopes.push_back(closure->data);
-            scopes.push_back(fr);
-            /*std::cout << "scopes:\n";
-            for(const auto& sc : scopes) {
-                std::cout << "\t{  ";
-                for(const auto&[name, val] : sc) {
-                    this->write(std::cout, name) << ": ";
-                    this->write(std::cout, val) << "  ";
-                }
-                std::cout << "}\n";
-            }*/
-
-            result = eval(fn->body);
-            scopes.pop_back();
-            closure->data = scopes[scopes.size() - 1];
-            scopes.pop_back();
-        }
+    } else {
+        return std::nullopt;
     }
     return result;
 }
@@ -399,7 +400,13 @@ value runtime::eval(value x) {
 
             case value_type::sym: result = look_up(x); break;
 
-            case value_type::cons: result = apply(first(x), second(x)); break;
+            case value_type::cons: {
+                auto b = apply_builtin(first(x), second(x));
+                if(b.has_value())
+                    result = b.value();
+                else
+                    result = apply(eval(first(x)), second(x));
+            } break;
 
             default:
                 std::ostringstream oss;
