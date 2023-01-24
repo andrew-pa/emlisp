@@ -1,4 +1,5 @@
 #include "parser.h"
+#include <sstream>
 
 void parser::check_next_symbol(symbol_type s, const std::string& msg) {
     token tk = toks.next();

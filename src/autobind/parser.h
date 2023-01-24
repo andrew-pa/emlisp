@@ -153,6 +153,14 @@ struct fn_type : public cpptype {
         }
         return out << ")";
     }
+
+    std::shared_ptr<cpptype> substitute(const named_types_map& params) override {
+        std::vector<std::shared_ptr<cpptype>> new_args;
+        new_args.reserve(arguments.size());
+        for(const auto& a : arguments)
+            new_args.emplace_back(a->substitute(params));
+        return std::make_shared<fn_type>(return_type->substitute(params), new_args);
+    }
 };
 
 struct property {
