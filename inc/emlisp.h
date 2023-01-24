@@ -134,6 +134,7 @@ class runtime {
     void  compute_closure(value v, const std::set<value>& bound, std::set<value>& free);
     value apply_quasiquote(value s);
     value eval_list(value x);
+    std::optional<value> apply_builtin(value f, value arguments);
 
     uint8_t* heap;
     uint8_t* heap_next;
