@@ -188,6 +188,54 @@ std::tuple<std::vector<id>, template_known_instances> parser::parse_template_def
     return {names, known_insts};
 }
 
+void parser::parse_signature(std::vector<std::pair<std::shared_ptr<cpptype>, id>>& args) {
+    check_next_symbol(symbol_type::open_paren, "expected (");
+    token tk = toks.peek();
+    while(!tk.is_symbol(symbol_type::close_paren)) {
+        auto ty = parse_type();
+
+        tk = toks.next();
+        if(!tk.is_id()) throw parse_error(tk, toks.line_number, "expected name for argument");
+        auto name = tk.data;
+
+        tk = toks.peek();
+        if(tk.is_symbol(symbol_type::eq)) {
+            // skip default value expression
+            toks.next();
+            while(!tk.is_eof()) {
+                tk = toks.peek();
+                if(tk.is_symbol(symbol_type::comma) || tk.is_symbol(symbol_type::close_paren))
+                    break;
+                toks.next();
+            }
+        }
+
+        args.emplace_back(ty, name);
+
+        tk = toks.next();
+        if(tk.is_symbol(symbol_type::close_paren)) break;
+        if(!tk.is_symbol(symbol_type::comma))
+            throw parse_error(tk, toks.line_number, "expected comma to seperate args");
+    }
+}
+
+method parser::parse_constructor(const object& ob) {
+    bool with_cx = false;
+    if(toks.peek().is_keyword(keyword::el_with_cx)) {
+        toks.next();
+        with_cx = true;
+    }
+
+    token tk = toks.next();
+    if(!tk.is_id()) throw parse_error(tk, toks.line_number, "expected constructor name");
+
+    auto m = method{constructor_id, std::make_shared<plain_type>(ob.name), with_cx};
+
+    parse_signature(m.args);
+
+    return m;
+}
+
 method parser::parse_method() {
     bool with_cx = false;
     if(toks.peek().is_keyword(keyword::el_with_cx)) {
@@ -208,34 +256,7 @@ method parser::parse_method() {
 
     auto m = method{tk.data, ret_ty, with_cx, template_info};
 
-    check_next_symbol(symbol_type::open_paren, "expected (");
-    tk = toks.peek();
-    while(!tk.is_symbol(symbol_type::close_paren)) {
-        auto ty = parse_type();
-
-        tk = toks.next();
-        if(!tk.is_id()) throw parse_error(tk, toks.line_number, "expected name for argument");
-        auto name = tk.data;
-
-        tk = toks.peek();
-        if(tk.is_symbol(symbol_type::eq)) {
-            // skip default value expression
-            toks.next();
-            while(!tk.is_eof()) {
-                tk = toks.peek();
-                if(tk.is_symbol(symbol_type::comma) || tk.is_symbol(symbol_type::close_paren))
-                    break;
-                toks.next();
-            }
-        }
-
-        m.args.emplace_back(ty, name);
-
-        tk = toks.next();
-        if(tk.is_symbol(symbol_type::close_paren)) break;
-        if(!tk.is_symbol(symbol_type::comma))
-            throw parse_error(tk, toks.line_number, "expected comma to seperate args");
-    }
+    parse_signature(m.args);
 
     return m;
 }
@@ -258,6 +279,8 @@ object parser::parse_object() {
     while(!tk.is_eof()) {
         if(tk.is_keyword(keyword::el_m))
             obj.methods.push_back(parse_method());
+        else if(tk.is_keyword(keyword::el_c))
+            obj.methods.push_back(parse_constructor(obj));
         else if(tk.is_keyword(keyword::el_prop))
             obj.properties.push_back(parse_property());
         else if(tk.is_symbol(symbol_type::open_brace))

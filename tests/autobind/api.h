@@ -31,6 +31,8 @@ struct asdf {
 EL_OBJ struct counter {
     EL_PROP(r) size_t value;
 
+    EL_C counter(size_t v) : value(v) {};
+
     EL_M void reset() {
         std::cout << "counter reset!\n";
         value = 0;
@@ -57,6 +59,12 @@ EL_OBJ struct counter {
 };
 
 EL_OBJ struct test_fn {
+    test_fn() = default;
+
+    EL_C test_fn(int x) {
+        assert(x == 3);
+    }
+
     EL_M void times(int count, const std::function<void(int)>& f) {
         for(int i = 0; i < count; ++i) {
             f(i);

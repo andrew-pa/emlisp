@@ -33,6 +33,7 @@ enum class keyword {
     el_obj,
     el_prop,
     el_m,
+    el_c,
     el_with_cx,
     read,
     readwrite,

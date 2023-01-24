@@ -10,9 +10,7 @@ int main(int argc, char* argv[]) {
     int cx = 0;
     add_bindings(&rt, (void*)&cx);
 
-    counter c {
-        .value = 10
-    };
+    counter c { 10 };
 
     test_fn f;
 
@@ -55,9 +53,14 @@ int main(int argc, char* argv[]) {
 
         std::cout << "testfn\n";
         c.reset();
-        rt.define_global("f", rt.make_extern_reference(&f));
-        {rt.eval(rt.read("(test-fn/times f 10 (lambda (i) (counter/increment c i)))"));
+        {rt.eval(rt.read("(test-fn/times (test-fn 3) 10 (lambda (i) (counter/increment c i)))"));
             assert(c.value == 45);}
+
+        std::cout << "test constructors\n";
+        {
+            value x = rt.eval(rt.read("(let ([nc (counter 2)]) (counter/increment nc 3))"));
+            assert(to_int(x) == 5);
+        }
     } catch(emlisp::type_mismatch_error e) {
         std::cout << "error: " << e.what() << "; actual = " << e.actual << ", expected = " << e.expected << "\n";
         exit(3);

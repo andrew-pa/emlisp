@@ -296,16 +296,19 @@ struct template_error : public std::runtime_error {
 struct parser {
     tokenizer& toks;
 
-    parser(tokenizer& toks) : toks(toks) {}
+    parser(tokenizer& toks, id constructor_id) : toks(toks), constructor_id(constructor_id) {}
 
     void parse(world& ast);
 
   private:
+    id                       constructor_id;
     void                     check_next_symbol(symbol_type s, const std::string& msg);
     std::shared_ptr<cpptype> parse_type();
     property                 parse_property();
     method                   parse_method();
-    object                   parse_object();
+    method                   parse_constructor(const object& ob);
+    void   parse_signature(std::vector<std::pair<std::shared_ptr<cpptype>, id>>& args);
+    object parse_object();
     std::pair<id, std::shared_ptr<cpptype>>               parse_typedef();
     std::vector<std::shared_ptr<cpptype>>                 parse_template_param_list();
     template_known_instances                              parse_known_instance_map();

@@ -99,6 +99,20 @@ struct code_generator {
         return tmp;
     }
 
+    std::string call_constructor(
+        const std::string& name, const std::vector<std::string>& arg_vals
+    ) {
+        auto tmp = new_tmp_var();
+        out << "auto " << tmp << " = ";
+        out << name << "(";
+        for(int i = 0; i < arg_vals.size(); ++i) {
+            out << arg_vals[i];
+            if(i < arg_vals.size() - 1) out << ", ";
+        }
+        out << ");\n";
+        return tmp;
+    }
+
     std::string lisp_to_cpp(const std::string& lisp_value, std::shared_ptr<cpptype> type) {
         auto tmp = new_tmp_var();
 
@@ -255,9 +269,12 @@ struct code_generator {
 struct generate_visitor {
     code_generator   gen;
     const tokenizer& toks;
+    id               constructor_id;
 
-    generate_visitor(const std::filesystem::path& output_path, const tokenizer& toks)
-        : gen(output_path, toks), toks(toks) {}
+    generate_visitor(
+        const std::filesystem::path& output_path, const tokenizer& toks, id constructor_id
+    )
+        : gen(output_path, toks), toks(toks), constructor_id(constructor_id) {}
 
     void generate_property_function(
         const object& ob, const std::string& prefix, const property& prop
@@ -286,6 +303,33 @@ struct generate_visitor {
         });
     }
 
+    std::vector<std::string> generate_method_args_conv(const method& m, size_t start = 1) {
+        std::vector<std::string> arg_vals;
+        size_t                   i = start;
+        for(const auto& [ty, nm] : m.args) {
+            if(i == 1 && m.with_cx) {
+                std::ostringstream oss;
+                oss << "(";
+                ty->print(oss, toks);
+                oss << ")cx";
+                arg_vals.push_back(oss.str());
+                continue;
+            }
+            auto lisp_arg = gen.get_arg(i++);
+            arg_vals.push_back(gen.lisp_to_cpp(lisp_arg, ty));
+        }
+        return arg_vals;
+    }
+
+    void generate_constructor_function(const object& ob, const method& m) {
+        gen.define_fn(make_lisp_name(toks.identifiers[ob.name]), [&]() {
+            auto arg_vals   = generate_method_args_conv(m, 0);
+            auto prt        = std::dynamic_pointer_cast<plain_type>(m.return_type);
+            auto cpp_retval = gen.call_constructor(toks.identifiers[ob.name], arg_vals);
+            gen.return_from_fn(gen.cpp_to_lisp(cpp_retval, m.return_type));
+        });
+    }
+
     void generate_single_method_function(
         const object&      ob,
         const std::string& fn_name,
@@ -294,21 +338,8 @@ struct generate_visitor {
     ) {
         gen.define_fn(fn_name, [&]() {
             gen.unpack_self(ob);
-            std::vector<std::string> arg_vals;
-            size_t                   i = 1;
-            for(const auto& [ty, nm] : m.args) {
-                if(i == 1 && m.with_cx) {
-                    std::ostringstream oss;
-                    oss << "(";
-                    ty->print(oss, toks);
-                    oss << ")cx";
-                    arg_vals.push_back(oss.str());
-                    continue;
-                }
-                auto lisp_arg = gen.get_arg(i++);
-                arg_vals.push_back(gen.lisp_to_cpp(lisp_arg, ty));
-            }
-            auto prt = std::dynamic_pointer_cast<plain_type>(m.return_type);
+            auto arg_vals = generate_method_args_conv(m);
+            auto prt      = std::dynamic_pointer_cast<plain_type>(m.return_type);
             if(prt != nullptr && toks.identifiers[prt->name] == "void") {
                 gen.call_method_expr("self", target_method_name, arg_vals);
                 gen.return_from_fn();
@@ -342,6 +373,8 @@ struct generate_visitor {
                     ob, make_lisp_name(prefix + sfn_name), fn_name.str(), nm
                 );
             }
+        } else if(m.name == constructor_id) {
+            generate_constructor_function(ob, m);
         } else {
             auto fn_name = prefix + make_lisp_name(toks.identifiers[m.name]);
             generate_single_method_function(ob, fn_name, toks.identifiers[m.name], m);
@@ -395,12 +428,14 @@ int main(int argc, char* argv[]) {
     // open each file and process it into the AST
     world     ast;
     tokenizer toks{nullptr};
+    auto      constructor_id = toks.identifiers.size();
+    toks.identifiers.emplace_back("<constructor>");
     for(const auto& inp : input_files) {
         std::cout << "input " << inp << "\n";
         std::ifstream ins(inp);
         toks.reset(&ins);
         try {
-            parser p{toks};
+            parser p{toks, constructor_id};
             p.parse(ast);
         } catch(parse_error e) {
             std::cerr << "failed to parse " << inp << " at ln " << e.ln << ": " << e.what() << " ("
@@ -417,7 +452,7 @@ int main(int argc, char* argv[]) {
     ast.print(std::cout, toks);
 
     // generate bindings by visiting AST nodes
-    generate_visitor g(output_path, toks);
+    generate_visitor g(output_path, toks, constructor_id);
     g.generate_bindings(ast, input_files);
 
     return 0;
