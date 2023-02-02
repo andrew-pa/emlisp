@@ -2,6 +2,7 @@
 #include <iostream>
 #include <string>
 #include <memory>
+#include <functional>
 #include "emlisp_autobind.h"
 
 EL_OBJ struct test_simple_pod {
@@ -22,6 +23,7 @@ EL_OBJ struct test_simple_method {
     EL_M void skirt(int* amount, char x) {}
     EL_M size_t* jump(bool yeet) {return nullptr;}
     EL_M int test(std::shared_ptr<int> x) { return *x; }
+    EL_M void leap2(int x = (3)) {}
 };
 
 struct asdf {

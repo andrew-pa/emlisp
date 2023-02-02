@@ -204,6 +204,16 @@ void parser::parse_signature(std::vector<std::pair<std::shared_ptr<cpptype>, id>
             toks.next();
             while(!tk.is_eof()) {
                 tk = toks.peek();
+                if(tk.is_symbol(symbol_type::open_paren)) {
+                    toks.next();
+                    size_t paren_count = 1;
+                    while(paren_count > 0 && !tk.is_eof()) {
+                        tk = toks.next();
+                        if(tk.is_symbol(symbol_type::open_paren)) paren_count++;
+                        if(tk.is_symbol(symbol_type::close_paren)) paren_count--;
+                    }
+                    tk = toks.peek();
+                }
                 if(tk.is_symbol(symbol_type::comma) || tk.is_symbol(symbol_type::close_paren))
                     break;
                 toks.next();
