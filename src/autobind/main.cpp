@@ -20,20 +20,9 @@ std::string make_lisp_name(std::string_view s) {
 }
 
 const std::unordered_set<std::string> intlike_types
-    = {"char",
-       "short",
-       "int",
-       "long",
-       "uint8_t",
-       "uint16_t",
-       "uint32_t",
-       "uint64_t",
-       "int8_t",
-       "int16_t",
-       "int32_t",
-       "int64_t",
-       "size_t",
-       "intptr_t"};
+    = {"char",   "short",   "int",     "long",    "uint8_t", "uint16_t", "uint32_t", "uint64_t",
+       "int8_t", "int16_t", "int32_t", "int64_t", "uint8",   "uint16",   "uint32",   "uint64",
+       "int8",   "int16",   "int32",   "int64",   "size_t",  "intptr_t"};
 
 const std::unordered_set<std::string> floatlike_types = {"float", "double"};
 
@@ -54,8 +43,13 @@ struct code_generator {
     std::string new_tmp_var() { return "_" + std::to_string(next_tmp++); }
 
     void unpack_self(const object& ob) {
-        out << "auto* self = rt->get_extern_reference<" << toks.identifiers[ob.name]
-            << ">(first(args));\n";
+        if(ob.always_shared) {
+            out << "auto* self = rt->get_extern_reference<std::shared_ptr<"
+                << toks.identifiers[ob.name] << ">>(first(args))->get();\n";
+        } else {
+            out << "auto* self = rt->get_extern_reference<" << toks.identifiers[ob.name]
+                << ">(first(args));\n";
+        }
     }
 
     std::string get_arg(size_t arg_index) {

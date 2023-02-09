@@ -119,7 +119,7 @@ class runtime {
     value parse_value(std::string_view src, size_t& i, bool quasimode = false);
 
     value sym_quote, sym_lambda, sym_if, sym_set, sym_define, sym_let, sym_letseq, sym_letrec,
-        sym_quasiquote, sym_unquote, sym_unquote_splicing, sym_defmacro, sym_ellipsis,
+        sym_quasiquote, sym_unquote, sym_unquote_splicing, sym_defmacro, sym_begin, sym_ellipsis,
         sym_unique_sym, sym_macro_error;
 
     void define_intrinsics();
@@ -185,6 +185,8 @@ class runtime {
     value apply(value f, value arguments);
 
     value expand(value v);
+
+    void eval_file(std::string_view contents);
 
     void define_fn(std::string_view name, extern_func_t fn, void* data = nullptr);
     void define_global(std::string_view name, value val);

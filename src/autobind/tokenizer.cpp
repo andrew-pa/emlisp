@@ -67,21 +67,22 @@ token tokenizer::parse_str(char ch) {
 }
 
 const std::map<std::string_view, keyword> keywords = {
-    {"class",          keyword::class_        },
-    {"struct",         keyword::struct_       },
-    {"const",          keyword::const_        },
-    {"template",       keyword::template_     },
-    {"typename",       keyword::typename_     },
-    {"using",          keyword::using_        },
-    {"EL_OBJ",         keyword::el_obj        },
-    {"EL_PROP",        keyword::el_prop       },
-    {"EL_M",           keyword::el_m          },
-    {"EL_C",           keyword::el_c          },
-    {"EL_WITH_CX",     keyword::el_with_cx    },
-    {"EL_KNOWN_INSTS", keyword::el_known_insts},
-    {"r",              keyword::read          },
-    {"rw",             keyword::readwrite     },
-    {"EL_TYPEDEF",     keyword::el_typedef    },
+    {"class",            keyword::class_          },
+    {"struct",           keyword::struct_         },
+    {"const",            keyword::const_          },
+    {"template",         keyword::template_       },
+    {"typename",         keyword::typename_       },
+    {"using",            keyword::using_          },
+    {"EL_OBJ",           keyword::el_obj          },
+    {"EL_PROP",          keyword::el_prop         },
+    {"EL_M",             keyword::el_m            },
+    {"EL_C",             keyword::el_c            },
+    {"EL_WITH_CX",       keyword::el_with_cx      },
+    {"EL_KNOWN_INSTS",   keyword::el_known_insts  },
+    {"EL_ALWAYS_SHARED", keyword::el_always_shared},
+    {"r",                keyword::read            },
+    {"rw",               keyword::readwrite       },
+    {"EL_TYPEDEF",       keyword::el_typedef      },
 };
 
 token tokenizer::parse_id(char ch) {

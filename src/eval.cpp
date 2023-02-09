@@ -26,6 +26,7 @@ runtime::runtime(size_t heap_size, bool load_std_lib)
     sym_set      = symbol("set!");
     sym_define   = symbol("define");
     sym_defmacro = symbol("defmacro");
+    sym_begin    = symbol("begin");
 
     sym_let    = symbol("let");
     sym_letseq = symbol("let*");
@@ -53,7 +54,8 @@ runtime::runtime(size_t heap_size, bool load_std_lib)
            sym_letrec,
            sym_unquote,
            sym_unquote_splicing,
-           sym_defmacro};
+           sym_defmacro,
+           sym_begin};
 
     scopes.emplace_back();
 
@@ -65,11 +67,15 @@ runtime::runtime(size_t heap_size, bool load_std_lib)
 
     if(load_std_lib) {
         define_std_functions();
-        value code = expand(read_all(EMLISP_STD_SRC));
-        while(code != NIL) {
-            eval(first(code));
-            code = second(code);
-        }
+        eval_file(EMLISP_STD_SRC);
+    }
+}
+
+void runtime::eval_file(std::string_view contents) {
+    value code = expand(read_all(contents));
+    while(code != NIL) {
+        eval(first(code));
+        code = second(code);
     }
 }
 
@@ -310,6 +316,14 @@ std::optional<value> runtime::apply_builtin(value f, value arguments) {
         scopes[scopes.size() - 1] = scope;
         result                    = eval(body);
         scopes.pop_back();
+    }
+
+    else if(f == sym_begin) {
+        value a = arguments;
+        while(a != NIL) {
+            result = eval(first(a));
+            a      = second(a);
+        }
     }
 
     else if(f == sym_lambda) {

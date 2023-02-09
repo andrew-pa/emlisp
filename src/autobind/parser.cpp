@@ -273,17 +273,26 @@ method parser::parse_method() {
 
 object parser::parse_object() {
     token tk = toks.next();
+
+    bool always_shared = false;
+    if(tk.is_keyword(keyword::el_always_shared)) {
+        always_shared = true;
+        tk            = toks.next();
+    }
+
     if(!tk.is_keyword(keyword::class_) && !tk.is_keyword(keyword::struct_))
         throw parse_error(tk, toks.line_number, "can only apply EL_OBJ to classes and structs");
+
     tk = toks.next();
     if(!tk.is_id()) throw parse_error(tk, toks.line_number, "expected name of class/struct");
     auto name_id = tk.data;
+
     // skip base classes
     while(!tk.is_eof() && !tk.is_symbol(symbol_type::open_brace))
         tk = toks.next();
     if(tk.is_eof()) throw parse_error(tk, toks.line_number, "unexpected eof");
 
-    object obj{name_id};
+    object obj{name_id, always_shared};
 
     size_t bracket_count = 0;
     while(!tk.is_eof()) {

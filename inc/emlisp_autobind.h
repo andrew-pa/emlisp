@@ -7,3 +7,4 @@
 #define EL_WITH_CX
 #define EL_KNOWN_INSTS(ki)
 #define EL_TYPEDEF
+#define EL_ALWAYS_SHARED

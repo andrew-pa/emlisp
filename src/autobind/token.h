@@ -38,7 +38,8 @@ enum class keyword {
     read,
     readwrite,
     el_known_insts,
-    el_typedef
+    el_typedef,
+    el_always_shared
 };
 
 struct token {

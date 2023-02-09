@@ -240,8 +240,9 @@ struct object {
     id                    name;
     std::vector<property> properties;
     std::vector<method>   methods;
+    bool                  always_shared;
 
-    object(id name) : name(name) {}
+    object(id name, bool always_shared) : name(name), always_shared(always_shared) {}
 
     std::ostream& print(std::ostream& out, const tokenizer& toks) const {
         out << "object " << toks.identifiers[name] << " {\n";
